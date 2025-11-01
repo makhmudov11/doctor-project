@@ -1,4 +1,5 @@
 from django.contrib.auth.base_user import AbstractBaseUser
+from django.contrib.auth.models import PermissionsMixin
 from django.db import models
 from django.utils.translation import gettext_lazy as _
 
@@ -17,7 +18,7 @@ class CustomUserRoleChoices(models.TextChoices):
     MENEJER = "Menejer", _("Menejer")
 
 
-class CustomUser(AbstractBaseUser, CreateUpdateBaseModel):
+class CustomUser(AbstractBaseUser, PermissionsMixin, CreateUpdateBaseModel):
     full_name = models.CharField(max_length=200)
     email = models.EmailField(unique=True, db_index=True, null=True, blank=True)
     phone_number = models.CharField(unique=True, null=True, blank=True)
@@ -33,7 +34,7 @@ class CustomUser(AbstractBaseUser, CreateUpdateBaseModel):
     is_superuser = models.BooleanField(default=False)
 
     USERNAME_FIELD = 'email'
-    REQUIRED_FIELDS = ['first_name', 'last_name']
+    REQUIRED_FIELDS = ['full_name']
 
     objects = CustomUserManager()
 
@@ -41,12 +42,10 @@ class CustomUser(AbstractBaseUser, CreateUpdateBaseModel):
         db_table = 'custom_user'
         verbose_name = 'Custom User'
         verbose_name_plural = 'Custom Users'
-        ordering = ['id']
+        ordering = ['-id']
 
     def __str__(self):
-        return self.email
+        return self.full_name or self.email or self.phone_number
 
     def get_full_name(self):
-        if self.first_name and self.last_name:
-            return f"{self.first_name.title()} {self.last_name.title()}"
-        return f"{self.first_name.title()}" or f"{self.last_name.title()}" or self.email
+        return f"{self.full_name.title()}" or self.email

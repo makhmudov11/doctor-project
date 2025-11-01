@@ -5,9 +5,14 @@ User = get_user_model()
 
 
 class EmailOrPhoneBackend(ModelBackend):
-    def authenticate(self, request, contact=None, password=None, **kwargs):
+    def authenticate(self, request, username=None, password=None, **kwargs):
+
+        contact = username or kwargs.get('contact')  # admin uchun 'username', API uchun 'contact'
+        if not contact:
+            return None
+
         user = None
-        if '@' in contact:
+        if contact and  '@' in contact:
             try:
                 user = User.objects.get(email=contact)
             except User.DoesNotExist:

@@ -21,30 +21,38 @@ class RegisterSerializer(serializers.ModelSerializer):
         model = User
         fields = ['id', 'full_name', 'email', 'phone_number',
                   'password1', 'password2', 'birth_date', 'contact']
-        read_only_fields = ['email', 'phone_number']
+        extra_kwargs = {
+            'email': {'read_only': True},
+            'phone_number': {'read_only': True},
+        }
 
 
     def validate(self, attrs):
-        contact = attrs.get('contact')
-        result = validate_email_or_phone_number(value=contact)
-        if result == 'email':
-            attrs['email'] = contact
-        else:
-            attrs['phone_number'] = contact
-
         password1 = attrs.get('password1')
         password2 = attrs.get('password2')
         if password2 != password1:
             raise ValidationError("Parol bir biriga mos emas")
+        password = attrs.pop("password1")
+        attrs["password"] = password
+        attrs.pop("password2")
 
         return attrs
 
 
 
     def create(self, validated_data):
-        password = validated_data.pop('password')
+        contact = validated_data.get('contact')
+        result = validate_email_or_phone_number(contact)
+        if result == 'email':
+            validated_data['email'] = contact
+        elif result == 'phone_number':
+            validated_data['phone_number'] = contact
+
+
+        validated_data.pop("contact")
+
         user = User(**validated_data)
-        user.set_password(password)
+        user.set_password(validated_data.get('password'))
         user.save()
         return user
 

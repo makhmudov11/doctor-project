@@ -26,7 +26,7 @@ SECRET_KEY = config('SECRET_KEY')
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = config('DEBUG')
 
-ALLOWED_HOSTS = [config('ALLOWED_HOSTS', cast=Csv())]
+ALLOWED_HOSTS = config('ALLOWED_HOSTS', cast=Csv())
 
 # Application definition
 CUSTOM_APPS = [
@@ -143,7 +143,7 @@ REST_FRAMEWORK = {
 
 AUTHENTICATION_BACKENDS = [
 
-    'apps.accounts.backends.EmailOrPhoneBackend',
+    'apps.users.backends.EmailOrPhoneBackend',
     'django.contrib.auth.backends.ModelBackend',
 ]
 
@@ -178,4 +178,4 @@ CELERY_RESULT_BACKEND = 'redis://127.0.0.1:6379/0'
 CELERY_ACCEPT_CONTENT = ['json']
 CELERY_TASK_SERIALIZER = 'json'
 CELERY_RESULT_SERIALIZER = 'json'
-CELERY_TASK_ALWAYS_EAGER = True
+CELERY_TASK_ALWAYS_EAGER = False

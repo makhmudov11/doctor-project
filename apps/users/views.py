@@ -3,6 +3,7 @@ from django.core.cache import cache
 from django.db.models import Q
 from rest_framework import status
 from rest_framework.decorators import api_view
+from rest_framework.exceptions import ValidationError
 from rest_framework.generics import CreateAPIView
 from rest_framework.response import Response
 from rest_framework.views import APIView
@@ -22,13 +23,25 @@ class RegisterCreateAPIView(CreateAPIView):
         serializer = self.serializer_class(data=request.data)
         serializer.is_valid(raise_exception=True)
         contact = serializer.validated_data.get('contact')
-        serializer.save()
+        if User.objects.filter(Q(email=contact) | Q(phone_number=contact)).exists():
+            raise ValidationError({"error":
+                                       f"""Ushbu {contact} {validate_email_or_phone_number(contact)} avval mavjud"""
+                                   })
+        full_name = serializer.validated_data.get('full_name')
+        password = serializer.validated_data.get('password')
+        birth_date = serializer.validated_data.get('birth_date')
         result = validate_email_or_phone_number(value=contact)
+        data = {
+            "contact" : contact,
+            "full_name" : full_name,
+            "birth_date" : birth_date,
+            "password" : password
+        }
         if result == 'email':
-            send_verification(contact)
+            send_verification(contact=contact, data=data)
             return Response(data={"message": f"{contact} ga kod yuborildi ✅"}, status=status.HTTP_200_OK)
-        else:
-            ...  # nomerga jonatiladi
+        # else:
+        #     ...  # nomerga jonatiladi
 
 
 class LoginAPIView(APIView):
