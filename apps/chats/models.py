@@ -12,7 +12,7 @@ User = get_user_model()
 
 
 class Profile(CreateUpdateBaseModel, models.Model):
-    username = models.CharField(max_length=250, null=True, blank=True)
+    username = models.CharField(max_length=250, null=True, blank=True, unique=True)
     bio = models.CharField(max_length=255, null=True, blank=True)
     full_name = models.CharField(max_length=255, null=True, blank=True)
     user = models.OneToOneField(User, on_delete=models.SET_NULL,
@@ -40,7 +40,7 @@ class Profile(CreateUpdateBaseModel, models.Model):
 
 
 class PrivateChat(CreateUpdateBaseModel, models.Model):
-    chat_id = models.UUIDField(default=uuid.uuid4(), unique=True, editable=False)
+    chat_id = models.UUIDField(default=uuid.uuid4, unique=True, editable=False)
     user = models.ManyToManyField(User, related_name='private_chats', blank=True)
 
     class Meta:
@@ -60,7 +60,7 @@ class PrivateChatMessage(CreateUpdateBaseModel, models.Model):
     sender = models.ForeignKey(User, related_name='private_chat_sender',
                                on_delete=models.CASCADE)
     text = models.TextField()
-    send_image = models.FileField(upload_to='chat/private/', null=True, blank=True)
+    attachment = models.FileField(upload_to='chat/private/', null=True, blank=True)
     is_read = models.BooleanField(default=False)
     read_date = models.DateTimeField(null=True, blank=True)
 
@@ -82,6 +82,6 @@ class Story(CreateUpdateBaseModel, models.Model):
             self.expires_at = self.created_at + timezone.timedelta(hours=24)
         super().save(*args, **kwargs)
 
-    def is_deleted(self):
+    def is_expired(self):
         return timezone.now() > self.expires_at
 
