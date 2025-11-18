@@ -1,16 +1,15 @@
 from django.contrib.auth import get_user_model
-from rest_framework import serializers, status
+from rest_framework import serializers
 from rest_framework.exceptions import ValidationError
-from rest_framework.response import Response
 
 from apps.users.models import SmsCode
+from apps.utils.CustomValidationError import CustomValidationError
 from apps.utils.validates import validate_email_or_phone_number
 
 User = get_user_model()
 
 
 class RegisterSerializer(serializers.ModelSerializer):
-
     birth_date = serializers.DateField(
         input_formats=["%d/%m/%Y"],
         format="%d/%m/%Y",
@@ -21,27 +20,17 @@ class RegisterSerializer(serializers.ModelSerializer):
         model = User
         fields = ['id', 'full_name', 'contact', 'birth_date', 'password', 'status']
         extra_kwargs = {
-            "password" : {"write_only" : True},
-            "status" : {"read_only" : True}
+            "password": {"write_only": True},
+            "status": {"read_only": True}
         }
 
-
-    def validate(self, attrs):
-        contact = attrs.get("contact")
-
-        try:
-            contact_type = validate_email_or_phone_number(contact)
-            self.contact_type = contact_type
-        except ValidationError:
-            self.contact_type = ""
-
-        return attrs
-
     def create(self, validated_data):
+        contact = validated_data.get('contact', "")
         user = User.objects.create(
             full_name=validated_data.get('full_name'),
-            contact=validated_data.get('contact'),
-            birth_date=validated_data.get('birth_date')
+            contact=contact,
+            birth_date=validated_data.get('birth_date'),
+            contact_type=validate_email_or_phone_number(contact)
         )
         user.set_password(validated_data.get('password'))
         user.save()
@@ -57,10 +46,10 @@ class LoginSerializer(serializers.Serializer):
         password = attrs.get('password')
 
         if contact is None:
-            raise ValidationError({"error": "Email yoki telefon raqam kiritilishi shart.", "code": 400})
+            raise CustomValidationError(detail="Email yoki telefon raqam kiritilishi shart.")
 
         if password is None:
-            raise ValidationError({"error": "Parol kiritilishi shart.", "code": 400})
+            raise CustomValidationError(detail="Parol kiritilishi shart.")
 
         return attrs
 
@@ -92,5 +81,4 @@ class VerifyCodeSerializer(serializers.Serializer):
         code = attrs.get('code')
         if len(code) == 6:
             return attrs
-        raise ValidationError("Parol xato", code=400)
-
+        raise CustomValidationError(detail="Parol xato")

@@ -66,7 +66,7 @@ class SmsCode(CreateUpdateBaseModel):
         return timezone.now() > self.expires_at
 
     @classmethod
-    def create_for_contact(cls, contact, hash_code, second=5):
+    def create_for_contact(cls, contact, hash_code, second=180):
         return cls.objects.create(
             contact=contact,
             hash_code=hash_code,

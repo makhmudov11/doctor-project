@@ -128,4 +128,4 @@ class ResendCode(APIView):
 
         user_codes.attempts += 1
         user_codes.save()
-        return CustomResponse.success_response(data={"contact" : contact}, message="Kod qaytadan yuborildi.")
+        return CustomResponse.success_response(data={"contact": contact}, message="Kod qaytadan yuborildi.")
