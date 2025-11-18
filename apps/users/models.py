@@ -1,6 +1,9 @@
+from datetime import timedelta
+
 from django.contrib.auth.base_user import AbstractBaseUser
 from django.contrib.auth.models import PermissionsMixin
 from django.db import models
+from django.utils import timezone
 from django.utils.translation import gettext_lazy as _
 
 from apps.users.managers import CustomUserManager
@@ -20,20 +23,21 @@ class CustomUserRoleChoices(models.TextChoices):
 
 class CustomUser(AbstractBaseUser, PermissionsMixin, CreateUpdateBaseModel):
     full_name = models.CharField(max_length=200)
-    email = models.EmailField(unique=True, db_index=True, null=True, blank=True)
-    phone_number = models.CharField(unique=True, null=True, blank=True)
+    contact = models.CharField(max_length=200, unique=True, db_index=True)
+    contact_type = models.CharField(max_length=100, null=True, blank=True)
     active_role = models.CharField(max_length=30,
                                    choices=CustomUserRoleChoices.choices,
                                    default=CustomUserRoleChoices.SHIFOKOR,
                                    null=True, blank=True)
     image = models.ImageField(upload_to='users/', null=True, blank=True)
     birth_date = models.DateTimeField(null=True, blank=True)
+    status = models.BooleanField(default=False)
 
     is_active = models.BooleanField(default=True)
     is_staff = models.BooleanField(default=False)
     is_superuser = models.BooleanField(default=False)
 
-    USERNAME_FIELD = 'email'
+    USERNAME_FIELD = 'contact'
     REQUIRED_FIELDS = ['full_name']
 
     objects = CustomUserManager()
@@ -45,7 +49,26 @@ class CustomUser(AbstractBaseUser, PermissionsMixin, CreateUpdateBaseModel):
         ordering = ['-id']
 
     def __str__(self):
-        return self.full_name or self.email or self.phone_number
+        return self.full_name or self.contact or self.contact_type
 
     def get_full_name(self):
-        return f"{self.full_name.title()}" or self.email
+        return f"{self.full_name.title()}" or self.contact
+
+
+class SmsCode(CreateUpdateBaseModel):
+    contact = models.CharField(max_length=255)
+    hash_code = models.CharField(max_length=255)
+    attempts = models.PositiveSmallIntegerField(default=1)
+    verified = models.BooleanField(default=False)
+    expires_at = models.DateTimeField(null=True, blank=True)
+
+    def is_expired(self):
+        return timezone.now() > self.expires_at
+
+    @classmethod
+    def create_for_contact(cls, contact, hash_code, second=5):
+        return cls.objects.create(
+            contact=contact,
+            hash_code=hash_code,
+            expires_at=timezone.now() + timedelta(seconds=second)
+        )

@@ -11,7 +11,7 @@ from apps.utils.base_models import CreateUpdateBaseModel
 User = get_user_model()
 
 
-class Profile(CreateUpdateBaseModel, models.Model):
+class Profile(CreateUpdateBaseModel):
     username = models.CharField(max_length=250, null=True, blank=True, unique=True)
     bio = models.CharField(max_length=255, null=True, blank=True)
     full_name = models.CharField(max_length=255, null=True, blank=True)
@@ -39,7 +39,7 @@ class Profile(CreateUpdateBaseModel, models.Model):
         super().save(*args, **kwargs)
 
 
-class PrivateChat(CreateUpdateBaseModel, models.Model):
+class PrivateChat(CreateUpdateBaseModel):
     chat_id = models.UUIDField(default=uuid.uuid4, unique=True, editable=False)
     user = models.ManyToManyField(User, related_name='private_chats', blank=True)
 
@@ -54,7 +54,7 @@ class PrivateChat(CreateUpdateBaseModel, models.Model):
             raise ValidationError("Ikki kishidan ortiq foydalanuvchi uchun ruhsat yoq")
 
 
-class PrivateChatMessage(CreateUpdateBaseModel, models.Model):
+class PrivateChatMessage(CreateUpdateBaseModel):
     chat = models.ForeignKey(PrivateChat, related_name='private_chat_messages',
                              on_delete=models.CASCADE, )
     sender = models.ForeignKey(User, related_name='private_chat_sender',
@@ -70,7 +70,7 @@ class PrivateChatMessage(CreateUpdateBaseModel, models.Model):
         verbose_name_plural = 'Private Chat messages'
 
 
-class Story(CreateUpdateBaseModel, models.Model):
+class Story(CreateUpdateBaseModel):
     profile = models.ForeignKey(Profile, related_name='profile_stories', on_delete=models.SET_NULL, null=True)
     content = models.FileField(upload_to='profile/story/', null=True)
     text = models.CharField(max_length=200, null=True, blank=True)

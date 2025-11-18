@@ -7,10 +7,7 @@ def get_tokens_for_user(user):
         raise AuthenticationFailed("User is not active")
 
     refresh = RefreshToken.for_user(user)
-    if user.email:
-        refresh['email'] = user.email
-    else:
-        refresh['phone_number'] = user.phone_number
+    refresh['contact'] = user.contact
 
     return {
         'refresh': str(refresh),

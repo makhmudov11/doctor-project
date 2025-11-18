@@ -2,16 +2,16 @@ from django.contrib.auth.base_user import BaseUserManager
 
 
 class CustomUserManager(BaseUserManager):
-    def create_user(self, email, password=None, **extra_fields):
-        if not email:
-            raise ValueError('Email kiritilishi shart')
-        email = self.normalize_email(email)
-        user = self.model(email=email, **extra_fields)
+    def create_user(self, contact, password=None, **extra_fields):
+        if not contact:
+            raise ValueError('Email yoki telefon raqam kiritilishi shart')
+        contact = self.normalize_email(contact)
+        user = self.model(contact=contact, **extra_fields)
         user.set_password(password)
         user.save(using=self._db)
         return user
 
-    def create_superuser(self, email, password=None, **extra_fields):
+    def create_superuser(self, contact, password=None, **extra_fields):
         extra_fields.setdefault('is_staff', True)
         extra_fields.setdefault('is_superuser', True)
 
@@ -20,4 +20,4 @@ class CustomUserManager(BaseUserManager):
         if extra_fields.get('is_superuser') is not True:
             raise ValueError('Superuser uchun is_superuser=True bo‘lishi kerak')
 
-        return self.create_user(email, password, **extra_fields)
+        return self.create_user(contact, password, **extra_fields)

@@ -1,69 +1,96 @@
 from django.contrib.auth import get_user_model
-from rest_framework import serializers
+from rest_framework import serializers, status
 from rest_framework.exceptions import ValidationError
+from rest_framework.response import Response
 
+from apps.users.models import SmsCode
 from apps.utils.validates import validate_email_or_phone_number
 
 User = get_user_model()
 
+
 class RegisterSerializer(serializers.ModelSerializer):
-    password1 = serializers.CharField(max_length=50, write_only=True, required=True)
-    password2 = serializers.CharField(max_length=50, write_only=True, required=True)
 
     birth_date = serializers.DateField(
         input_formats=["%d/%m/%Y"],
-        format="%d/%m/%Y"
+        format="%d/%m/%Y",
+        required=True
     )
-
-    contact = serializers.CharField(max_length=100, write_only=True, required=True)
 
     class Meta:
         model = User
-        fields = ['id', 'full_name', 'email', 'phone_number',
-                  'password1', 'password2', 'birth_date', 'contact']
+        fields = ['id', 'full_name', 'contact', 'birth_date', 'password', 'status']
         extra_kwargs = {
-            'email': {'read_only': True},
-            'phone_number': {'read_only': True},
+            "password" : {"write_only" : True},
+            "status" : {"read_only" : True}
         }
 
 
     def validate(self, attrs):
-        password1 = attrs.get('password1')
-        password2 = attrs.get('password2')
-        if password2 != password1:
-            raise ValidationError("Parol bir biriga mos emas")
-        password = attrs.pop("password1")
-        attrs["password"] = password
-        attrs.pop("password2")
+        contact = attrs.get("contact")
+
+        try:
+            contact_type = validate_email_or_phone_number(contact)
+            self.contact_type = contact_type
+        except ValidationError:
+            self.contact_type = ""
 
         return attrs
 
-
-
     def create(self, validated_data):
-        contact = validated_data.get('contact')
-        result = validate_email_or_phone_number(contact)
-        if result == 'email':
-            validated_data['email'] = contact
-        elif result == 'phone_number':
-            validated_data['phone_number'] = contact
-
-
-        validated_data.pop("contact")
-
-        user = User(**validated_data)
+        user = User.objects.create(
+            full_name=validated_data.get('full_name'),
+            contact=validated_data.get('contact'),
+            birth_date=validated_data.get('birth_date')
+        )
         user.set_password(validated_data.get('password'))
         user.save()
         return user
 
 
 class LoginSerializer(serializers.Serializer):
-    email = serializers.CharField(max_length=100, required=True)
-    password = serializers.CharField(max_length=30, required=True)
+    contact = serializers.CharField(max_length=100)
+    password = serializers.CharField(max_length=30)
 
+    def validate(self, attrs):
+        contact = attrs.get('contact')
+        password = attrs.get('password')
+
+        if contact is None:
+            raise ValidationError({"error": "Email yoki telefon raqam kiritilishi shart.", "code": 400})
+
+        if password is None:
+            raise ValidationError({"error": "Parol kiritilishi shart.", "code": 400})
+
+        return attrs
 
 
 class UserSerializer(serializers.ModelSerializer):
     class Meta:
         model = User
-        fields = ['id', 'full_name', 'email', 'phone_number', 'created_at', 'is_active', 'is_staff']
+        fields = ['id', 'full_name', 'contact', 'created_at', 'is_active', 'status']
+
+
+class SmsCodeSerializer(serializers.ModelSerializer):
+    user = UserSerializer(source='contact', read_only=True)
+
+    class Meta:
+        model = SmsCode
+        fields = ['id', 'user', 'created_at', 'attempts', 'verified', 'expires_at']
+        extra_kwargs = {
+            'attempts': {'read_only': True},
+            'verified': {'read_only': True},
+            'expires_at': {'read_only': True},
+        }
+
+
+class VerifyCodeSerializer(serializers.Serializer):
+    contact = serializers.CharField(max_length=200)
+    code = serializers.CharField(max_length=100, required=True)
+
+    def validate(self, attrs):
+        code = attrs.get('code')
+        if len(code) == 6:
+            return attrs
+        raise ValidationError("Parol xato", code=400)
+
