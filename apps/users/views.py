@@ -2,15 +2,19 @@ from django.contrib.auth import get_user_model
 from django.contrib.auth.hashers import check_password, make_password
 from django.utils import timezone
 from rest_framework import status
-from rest_framework.status import HTTP_500_INTERNAL_SERVER_ERROR, HTTP_401_UNAUTHORIZED, HTTP_201_CREATED
+from rest_framework.permissions import AllowAny
+from rest_framework.status import HTTP_500_INTERNAL_SERVER_ERROR, HTTP_401_UNAUTHORIZED, HTTP_201_CREATED, \
+    HTTP_404_NOT_FOUND
 
+from apps.users.permissions import UserListPermission, UserDetailPermission
 from apps.utils import CustomResponse
-from rest_framework.generics import CreateAPIView
+from rest_framework.generics import CreateAPIView, ListAPIView, ListCreateAPIView, RetrieveUpdateDestroyAPIView
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from apps.users.models import SmsCode
-from apps.users.serializers import RegisterSerializer, LoginSerializer, UserSerializer, VerifyCodeSerializer
+from apps.users.serializers import RegisterSerializer, LoginSerializer, UserSerializer, VerifyCodeSerializer, \
+    UserListSerializer, UserDetailSerializer
 from apps.users.tasks import send_verification_code
 
 from apps.utils.generate_code import generate_code
@@ -61,14 +65,18 @@ class LoginAPIView(APIView):
         try:
             user = User.objects.get(contact=contact)
         except User.DoesNotExist:
-            return Response({"data": {"error": "User topilmadi"}}, status=status.HTTP_404_NOT_FOUND)
+            return CustomResponse.error_response(message="User topilmadi", code=HTTP_404_NOT_FOUND)
 
         if not user.check_password(password):
-            return Response({"error": "Parol noto'g'ri"}, status=status.HTTP_401_UNAUTHORIZED)
+            return CustomResponse.error_response(message="Parol noto'g'ri", code=HTTP_401_UNAUTHORIZED)
 
-        user = UserSerializer(user).data
         token = get_tokens_for_user(user)
-        return Response(data={"user": user, "token": token}, status=status.HTTP_200_OK)
+        user = UserSerializer(user).data
+
+        return CustomResponse.success_response(
+            message="Login muvaqqiyatli yakunlandi",
+            data={"user": user, "token": token}
+        )
 
 
 class VerifyCodeAPIView(APIView):
@@ -129,3 +137,18 @@ class ResendCode(APIView):
         user_codes.attempts += 1
         user_codes.save()
         return CustomResponse.success_response(data={"contact": contact}, message="Kod qaytadan yuborildi.")
+
+
+class UserListCreateAPIView(ListCreateAPIView):
+    serializer_class = UserListSerializer
+    permission_classes = [UserListPermission]
+
+    def get_queryset(self):
+        return User.objects.filter(status=True)
+
+class UserRetrieveUpdateDestroyAPIView(RetrieveUpdateDestroyAPIView):
+    serializer_class = UserDetailSerializer
+    permission_classes = [UserDetailPermission]
+
+    def get_queryset(self):
+        return User.objects.filter(status=True)

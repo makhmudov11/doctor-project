@@ -82,3 +82,20 @@ class VerifyCodeSerializer(serializers.Serializer):
         if len(code) == 6:
             return attrs
         raise CustomValidationError(detail="Parol xato")
+
+class UserListSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = User
+        fields = ['id', 'contact', 'full_name', 'birth_date', 'image', 'created_at', 'active_role', 'status']
+
+class UserDetailSerializer(serializers.ModelSerializer):
+
+    class Meta:
+        model = User
+        fields = ['id', 'contact', 'full_name', 'birth_date', 'image', 'created_at', 'active_role', 'status']
+        # extra_kwargs = {
+        #     "image" : {"read_only" : True},
+        #     "created_at" : {"read_only" : True},
+        #     "active_role" : {"read_only" : True},
+        #     "status" : {"read_only" : True},
+        # }

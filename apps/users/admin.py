@@ -9,7 +9,7 @@ User = get_user_model()
 
 @admin.register(User)
 class CustomUserAdmin(admin.ModelAdmin):
-    list_display = ['id', 'contact', 'contact_type', 'status']
+    list_display = ['id', 'contact', 'contact_type', 'status', 'active_role', 'is_staff']
 
 @admin.register(SmsCode)
 class AdminSmsCode(admin.ModelAdmin):

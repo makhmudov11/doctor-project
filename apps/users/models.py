@@ -27,7 +27,7 @@ class CustomUser(AbstractBaseUser, PermissionsMixin, CreateUpdateBaseModel):
     contact_type = models.CharField(max_length=100, null=True, blank=True)
     active_role = models.CharField(max_length=30,
                                    choices=CustomUserRoleChoices.choices,
-                                   default=CustomUserRoleChoices.SHIFOKOR,
+                                   default=CustomUserRoleChoices.BEMOR,
                                    null=True, blank=True)
     image = models.ImageField(upload_to='users/', null=True, blank=True)
     birth_date = models.DateTimeField(null=True, blank=True)
