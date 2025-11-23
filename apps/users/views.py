@@ -1,23 +1,26 @@
 from django.contrib.auth import get_user_model
 from django.contrib.auth.hashers import check_password, make_password
 from django.utils import timezone
-from rest_framework import status
-from rest_framework.permissions import AllowAny
+from drf_spectacular.utils import extend_schema, OpenApiResponse
+from rest_framework import serializers, status
+from rest_framework.parsers import MultiPartParser, FormParser
+from rest_framework.response import Response
 from rest_framework.status import HTTP_500_INTERNAL_SERVER_ERROR, HTTP_401_UNAUTHORIZED, HTTP_201_CREATED, \
     HTTP_404_NOT_FOUND
 
 from apps.users.permissions import UserListPermission, UserDetailPermission
 from apps.utils import CustomResponse
-from rest_framework.generics import CreateAPIView, ListAPIView, ListCreateAPIView, RetrieveUpdateDestroyAPIView
-from rest_framework.response import Response
+from rest_framework.generics import CreateAPIView, ListCreateAPIView, RetrieveUpdateDestroyAPIView
 from rest_framework.views import APIView
 
 from apps.users.models import SmsCode
 from apps.users.serializers import RegisterSerializer, LoginSerializer, UserSerializer, VerifyCodeSerializer, \
-    UserListSerializer, UserDetailSerializer
+    UserListSerializer, UserDetailSerializer, ResendCodeSerializer
 from apps.users.tasks import send_verification_code
 
 from apps.utils.generate_code import generate_code
+from apps.utils.swagger.users.serializer import SwaggerLoginSerializer, SwaggerRegisterSerializer, \
+    SwaggerVerifyCodeSerializer, SwaggerResendCodeSerializer, SwaggerUserRetrieveUpdateDestroySerializer
 from apps.utils.token_claim import get_tokens_for_user
 from apps.utils.validates import validate_email_or_phone_number
 
@@ -28,9 +31,19 @@ class RegisterCreateAPIView(CreateAPIView):
     serializer_class = RegisterSerializer
     queryset = User.objects.all()
 
+    @extend_schema(
+        request=RegisterSerializer,
+        responses={
+            200: OpenApiResponse(response=SwaggerRegisterSerializer)
+        }
+    )
     def create(self, request, *args, **kwargs):
         serializer = self.serializer_class(data=request.data)
-        serializer.is_valid(raise_exception=True)
+        try:
+            serializer.is_valid(raise_exception=True)
+        except serializers.ValidationError as e:
+            return CustomResponse.error_response(data=e.detail)
+
         contact = serializer.validated_data.get('contact')
         if User.objects.filter(contact=contact).exists():
             return CustomResponse.error_response(message=f"{contact} orqali ro'yhatdan o'tilgan.")
@@ -49,12 +62,15 @@ class RegisterCreateAPIView(CreateAPIView):
             send_verification_code(email=contact, code=code)
             return CustomResponse.success_response(data={"user": user}, message="Kod yuborildi.")
         else:
-            pass
+            return CustomResponse.success_response(message='qalesan')
 
 
 class LoginAPIView(APIView):
     serializer_class = LoginSerializer
 
+    @extend_schema(
+        responses=SwaggerLoginSerializer,
+    )
     def post(self, request):
 
         serializer = self.serializer_class(data=request.data)
@@ -82,7 +98,13 @@ class LoginAPIView(APIView):
 class VerifyCodeAPIView(APIView):
     serializer_class = VerifyCodeSerializer
 
+    @extend_schema(
+        responses={
+            201: SwaggerVerifyCodeSerializer},
+        description="User yaratilgan boladi, statusi TRUE boladi."
+    )
     def post(self, request):
+
         serializer = self.serializer_class(data=request.data)
         serializer.is_valid(raise_exception=True)
         contact = serializer.validated_data.get('contact')
@@ -112,6 +134,11 @@ class VerifyCodeAPIView(APIView):
 
 
 class ResendCode(APIView):
+
+    @extend_schema(
+        request=ResendCodeSerializer,
+        responses=SwaggerResendCodeSerializer
+    )
     def post(self, request):
         contact = request.data.get('contact')
 
@@ -142,13 +169,21 @@ class ResendCode(APIView):
 class UserListCreateAPIView(ListCreateAPIView):
     serializer_class = UserListSerializer
     permission_classes = [UserListPermission]
+    parser_classes = [MultiPartParser, FormParser]
 
     def get_queryset(self):
         return User.objects.filter(status=True)
+
 
 class UserRetrieveUpdateDestroyAPIView(RetrieveUpdateDestroyAPIView):
     serializer_class = UserDetailSerializer
     permission_classes = [UserDetailPermission]
 
+    @extend_schema(
+        responses=OpenApiResponse(
+            response=SwaggerUserRetrieveUpdateDestroySerializer,
+    )
+    )
+
     def get_queryset(self):
-        return User.objects.filter(status=True)
+        return User.objects.all()

@@ -10,6 +10,6 @@ urlpatterns = [
     path('verify/', VerifyCodeAPIView.as_view(), name='verify'),
     path('resend/', ResendCode.as_view(), name='resend_code'),
     path('list/', UserListCreateAPIView.as_view(), name='user_list'),
-    path('detail/<int:pk>', UserRetrieveUpdateDestroyAPIView.as_view(), name='user_list'),
+    path('detail/<int:pk>', UserRetrieveUpdateDestroyAPIView.as_view(), name='user_detail'),
 ]
 

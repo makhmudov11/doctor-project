@@ -62,11 +62,21 @@ class SmsCode(CreateUpdateBaseModel):
     verified = models.BooleanField(default=False)
     expires_at = models.DateTimeField(null=True, blank=True)
 
+
     def is_expired(self):
+        if not self.expires_at:
+            return False
         return timezone.now() > self.expires_at
+
+
 
     @classmethod
     def create_for_contact(cls, contact, hash_code, second=180):
+        cls.objects.filter(
+            expires_at__lt=timezone.now(),
+            verified=False
+        ).delete()
+
         return cls.objects.create(
             contact=contact,
             hash_code=hash_code,

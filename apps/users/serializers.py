@@ -74,7 +74,7 @@ class SmsCodeSerializer(serializers.ModelSerializer):
 
 
 class VerifyCodeSerializer(serializers.Serializer):
-    contact = serializers.CharField(max_length=200)
+    contact = serializers.CharField(max_length=200, required=True)
     code = serializers.CharField(max_length=100, required=True)
 
     def validate(self, attrs):
@@ -82,6 +82,11 @@ class VerifyCodeSerializer(serializers.Serializer):
         if len(code) == 6:
             return attrs
         raise CustomValidationError(detail="Parol xato")
+
+
+
+class ResendCodeSerializer(serializers.Serializer):
+    contact = serializers.CharField(max_length=200, required=True)
 
 class UserListSerializer(serializers.ModelSerializer):
     class Meta:
