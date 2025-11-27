@@ -32,6 +32,7 @@ ALLOWED_HOSTS = config('ALLOWED_HOSTS', cast=Csv())
 CUSTOM_APPS = [
     'apps.users',
     'apps.chats',
+    'apps.appointments',
 ]
 
 CUSTOM_INSTALLED_APPS = [

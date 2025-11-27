@@ -29,7 +29,7 @@ class CustomUser(AbstractBaseUser, PermissionsMixin, CreateUpdateBaseModel):
                                    choices=CustomUserRoleChoices.choices,
                                    default=CustomUserRoleChoices.BEMOR,
                                    null=True, blank=True)
-    image = models.ImageField(upload_to='users/', null=True, blank=True)
+    image = models.ImageField(upload_to='users/image/', null=True, blank=True)
     birth_date = models.DateTimeField(null=True, blank=True)
     status = models.BooleanField(default=False)
 

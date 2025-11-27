@@ -1,12 +1,12 @@
 from django.contrib.auth import get_user_model
 from django.contrib.auth.hashers import check_password, make_password
 from django.utils import timezone
-from drf_spectacular.utils import extend_schema, OpenApiResponse
-from rest_framework import serializers, status
+from drf_spectacular.utils import extend_schema, OpenApiResponse, extend_schema_view, OpenApiExample
+from rest_framework import serializers
 from rest_framework.parsers import MultiPartParser, FormParser
-from rest_framework.response import Response
 from rest_framework.status import HTTP_500_INTERNAL_SERVER_ERROR, HTTP_401_UNAUTHORIZED, HTTP_201_CREATED, \
     HTTP_404_NOT_FOUND
+from rest_framework.viewsets import ViewSet, ModelViewSet
 
 from apps.users.permissions import UserListPermission, UserDetailPermission
 from apps.utils import CustomResponse
@@ -17,6 +17,7 @@ from apps.users.models import SmsCode
 from apps.users.serializers import RegisterSerializer, LoginSerializer, UserSerializer, VerifyCodeSerializer, \
     UserListSerializer, UserDetailSerializer, ResendCodeSerializer
 from apps.users.tasks import send_verification_code
+from apps.utils.CustomViewSet import BaseModelViewSet
 
 from apps.utils.generate_code import generate_code
 from apps.utils.swagger.users.serializer import SwaggerLoginSerializer, SwaggerRegisterSerializer, \
@@ -88,7 +89,6 @@ class LoginAPIView(APIView):
 
         token = get_tokens_for_user(user)
         user = UserSerializer(user).data
-
         return CustomResponse.success_response(
             message="Login muvaqqiyatli yakunlandi",
             data={"user": user, "token": token}
@@ -165,25 +165,14 @@ class ResendCode(APIView):
         user_codes.save()
         return CustomResponse.success_response(data={"contact": contact}, message="Kod qaytadan yuborildi.")
 
-
-class UserListCreateAPIView(ListCreateAPIView):
-    serializer_class = UserListSerializer
-    permission_classes = [UserListPermission]
-    parser_classes = [MultiPartParser, FormParser]
-
-    def get_queryset(self):
-        return User.objects.filter(status=True)
-
-
-class UserRetrieveUpdateDestroyAPIView(RetrieveUpdateDestroyAPIView):
-    serializer_class = UserDetailSerializer
+class UserModelViewSet(BaseModelViewSet):
+    queryset = User.objects.all()
     permission_classes = [UserDetailPermission]
 
-    @extend_schema(
-        responses=OpenApiResponse(
-            response=SwaggerUserRetrieveUpdateDestroySerializer,
-    )
-    )
-
-    def get_queryset(self):
-        return User.objects.all()
+    def get_serializer_class(self):
+        if self.action == 'list':
+            return UserListSerializer
+        elif self.action == 'create':
+            return RegisterSerializer
+        else:
+            return UserDetailSerializer
