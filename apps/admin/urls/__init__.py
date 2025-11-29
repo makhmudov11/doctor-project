@@ -1,0 +1,7 @@
+from django.urls import path, include
+
+app_name = 'admin'
+
+urlpatterns = [
+    path('users/', include('apps.admin.urls.users_urls'))
+]

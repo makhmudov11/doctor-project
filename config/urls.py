@@ -20,7 +20,8 @@ from django.urls import path, include
 from apps.utils.swagger.swagger_urls import SPECTACULAR_URL
 
 urlpatterns = [
-    path('admin/', admin.site.urls),
+    path('super-admin/', admin.site.urls),
+    path('admin/', include('apps.admin.urls', namespace='admin')),
     path('users/', include('apps.users.urls', namespace='users')),
 
 ] + SPECTACULAR_URL

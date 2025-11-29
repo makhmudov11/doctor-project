@@ -1,27 +1,24 @@
+from datetime import timedelta
+
 from django.contrib.auth import get_user_model
 from django.contrib.auth.hashers import check_password, make_password
-from django.utils import timezone
-from drf_spectacular.utils import extend_schema, OpenApiResponse, extend_schema_view, OpenApiExample
-from rest_framework import serializers
-from rest_framework.parsers import MultiPartParser, FormParser
-from rest_framework.status import HTTP_500_INTERNAL_SERVER_ERROR, HTTP_401_UNAUTHORIZED, HTTP_201_CREATED, \
-    HTTP_404_NOT_FOUND
-from rest_framework.viewsets import ViewSet, ModelViewSet
 
-from apps.users.permissions import UserListPermission, UserDetailPermission
+from django.utils import timezone
+from rest_framework.parsers import MultiPartParser, FormParser
+from rest_framework.status import HTTP_401_UNAUTHORIZED, HTTP_201_CREATED, \
+    HTTP_404_NOT_FOUND
+
+from apps.users.permissions import UserDetailPermission
 from apps.utils import CustomResponse
-from rest_framework.generics import CreateAPIView, ListCreateAPIView, RetrieveUpdateDestroyAPIView
+from rest_framework.generics import CreateAPIView, RetrieveUpdateAPIView
 from rest_framework.views import APIView
 
 from apps.users.models import SmsCode
-from apps.users.serializers import RegisterSerializer, LoginSerializer, UserSerializer, VerifyCodeSerializer, \
-    UserListSerializer, UserDetailSerializer, ResendCodeSerializer
+from apps.users.serializers import (RegisterSerializer, LoginSerializer, UserSerializer, VerifyCodeSerializer,
+                                    UserDetailSerializer, ResendCodeSerializer, SmsCodeSerializer)
 from apps.users.tasks import send_verification_code
-from apps.utils.CustomViewSet import BaseModelViewSet
 
 from apps.utils.generate_code import generate_code
-from apps.utils.swagger.users.serializer import SwaggerLoginSerializer, SwaggerRegisterSerializer, \
-    SwaggerVerifyCodeSerializer, SwaggerResendCodeSerializer, SwaggerUserRetrieveUpdateDestroySerializer
 from apps.utils.token_claim import get_tokens_for_user
 from apps.utils.validates import validate_email_or_phone_number
 
@@ -32,36 +29,47 @@ class RegisterCreateAPIView(CreateAPIView):
     serializer_class = RegisterSerializer
     queryset = User.objects.all()
 
-    @extend_schema(
-        request=RegisterSerializer,
-        responses={
-            200: OpenApiResponse(response=SwaggerRegisterSerializer)
-        }
-    )
     def create(self, request, *args, **kwargs):
-        serializer = self.serializer_class(data=request.data)
-        try:
-            serializer.is_valid(raise_exception=True)
-        except serializers.ValidationError as e:
-            return CustomResponse.error_response(data=e.detail)
+        contact = request.data.get('contact', '').strip()
+        password = request.data.get('password', '').strip()
 
-        contact = serializer.validated_data.get('contact')
-        if User.objects.filter(contact=contact).exists():
-            return CustomResponse.error_response(message=f"{contact} orqali ro'yhatdan o'tilgan.")
+        if not contact:
+            return CustomResponse.error_response(
+                message='Email yoki telefon raqam kiritilishi shart'
+            )
+
+        if not password:
+            return CustomResponse.error_response(message='Parol kiritilishi shart.')
+
+        if User.objects.filter(contact=contact, status=True).exists():
+            return CustomResponse.error_response(
+                message=f"{contact} orqali avval ro'yhatdan o'tilgan"
+            )
+
+        User.objects.filter(contact=contact, status=False).delete()
+
+        serializer = self.serializer_class(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
         user = serializer.save()
         user = UserSerializer(user).data
-        result = validate_email_or_phone_number(value=contact)
-        if result == 'email':
+
+        contact_type = serializer.validated_data.get('contact_type')
+
+        if contact_type == 'email':
             code = generate_code()
+
             try:
-                SmsCode.create_for_contact(contact, make_password(code))
-            except Exception as e:
-                return CustomResponse.error_response(
-                    message=f"Server xatosi, {str(e)}",
-                    code=HTTP_500_INTERNAL_SERVER_ERROR
+                SmsCode.create_for_contact(
+                    contact=contact,
+                    hash_code=make_password(code),
+                    _type='register'
                 )
-            send_verification_code(email=contact, code=code)
-            return CustomResponse.success_response(data={"user": user}, message="Kod yuborildi.")
+                send_verification_code(email=contact, code=code)
+                return CustomResponse.success_response(data={"user": user}, message="Kod yuborildi.")
+            except Exception as e:
+                print(str(e))
+                return CustomResponse.error_response(message='Kod yuborishda xatolik.', data={"user": user})
         else:
             return CustomResponse.success_response(message='qalesan')
 
@@ -69,15 +77,11 @@ class RegisterCreateAPIView(CreateAPIView):
 class LoginAPIView(APIView):
     serializer_class = LoginSerializer
 
-    @extend_schema(
-        responses=SwaggerLoginSerializer,
-    )
     def post(self, request):
-
         serializer = self.serializer_class(data=request.data)
         serializer.is_valid(raise_exception=True)
-        contact = serializer.validated_data.get('contact')
-        password = serializer.validated_data.get('password')
+        contact = serializer.validated_data.get('contact').strip()
+        password = serializer.validated_data.get('password').strip()
 
         try:
             user = User.objects.get(contact=contact)
@@ -87,92 +91,117 @@ class LoginAPIView(APIView):
         if not user.check_password(password):
             return CustomResponse.error_response(message="Parol noto'g'ri", code=HTTP_401_UNAUTHORIZED)
 
-        token = get_tokens_for_user(user)
         user = UserSerializer(user).data
-        return CustomResponse.success_response(
-            message="Login muvaqqiyatli yakunlandi",
-            data={"user": user, "token": token}
-        )
+
+        contact_type = validate_email_or_phone_number(contact)
+        if contact_type == 'email':
+            code = generate_code()
+            user_code_obj = SmsCode.create_for_contact(contact=contact, hash_code=make_password(code), _type='login')
+            user_code_data = SmsCodeSerializer(user_code_obj).data
+            send_verification_code(email=contact, code=code)
+            return CustomResponse.success_response(
+                message='Kod yuborildi.',
+                data={"user": user, "user_code_data": user_code_data}
+            )
+        else:
+            pass
 
 
 class VerifyCodeAPIView(APIView):
     serializer_class = VerifyCodeSerializer
+    MAX_ATTEMPTS = 3
 
-    @extend_schema(
-        responses={
-            201: SwaggerVerifyCodeSerializer},
-        description="User yaratilgan boladi, statusi TRUE boladi."
-    )
     def post(self, request):
+        contact = request.data.get('contact', '').strip()
+        if not contact:
+            return CustomResponse.error_response(message='Email yoki telefon raqam kelishi shart')
 
         serializer = self.serializer_class(data=request.data)
         serializer.is_valid(raise_exception=True)
-        contact = serializer.validated_data.get('contact')
+
         code = serializer.validated_data.get('code')
-        if not code or not contact:
-            return CustomResponse.error_response(message="Malumot toliq emas")
-        user_codes = SmsCode.objects.filter(contact=contact, verified=False).last()
-        if not user_codes:
+
+        user = User.objects.filter(contact=contact).first()
+        if not user:
+            return CustomResponse.error_response(message='User topilmadi')
+
+        user_code_obj = SmsCode.objects.filter(
+            contact=contact,
+            verified=False,
+            expires_at__gte=timezone.now()
+
+        ).order_by('-created_at').first()
+
+        if not user_code_obj:
             return CustomResponse.error_response(message="Kod topilmadi")
 
-        if user_codes.expires_at < timezone.now():
-            user_codes.delete()
-            return CustomResponse.error_response(message="Kod yaroqsiz")
+        if not check_password(code, user_code_obj.hash_code):
+            user_code_obj.attempts += 1
+            user_code_obj.save()
 
-        if check_password(code, user_codes.hash_code):
-            user = User.objects.filter(contact=contact).first()
+            if user_code_obj.attempts >= self.MAX_ATTEMPTS:
+                return CustomResponse.error_response(message="Urinishlar soni tugadi.")
+
+            return CustomResponse.error_response(
+                message=f"Kod noto'g'ri kiritildi. Qolgan urinshlar: {self.MAX_ATTEMPTS - user_code_obj.attempts}")
+
+        if user_code_obj._type == 'register':
             user.status = True
-            user = user.save()
+            user.save()
+            user_data = UserSerializer(user).data
+            user_code_obj.verified = True
+            user_code_obj.save()
+            return CustomResponse.success_response(
+                message="Registratsiya muvaffqaiyatli bajarildi, foydalanuvchi yaratildi",
+                data=user_data, code=HTTP_201_CREATED)
+        else:
+            user_code_obj.verified = True
+            user_code_obj.save()
+            token = get_tokens_for_user(user)
             user = UserSerializer(user).data
-            user_codes.verified = True
-            user_codes.save()
-            return CustomResponse.success_response(message="Foydalanuvchi yaratildi",
-                                                   data=user,
-                                                   code=HTTP_201_CREATED)
-
-        return CustomResponse.error_response(message="Kod noto‘g‘ri kiritildi", code=HTTP_401_UNAUTHORIZED)
+            return CustomResponse.success_response(
+                message="Login muvaqqiyatli yakunlandi",
+                data={"user": user, "token": token}
+            )
 
 
 class ResendCode(APIView):
+    serializer_class = ResendCodeSerializer
 
-    @extend_schema(
-        request=ResendCodeSerializer,
-        responses=SwaggerResendCodeSerializer
-    )
+    MAX_RESEND_CODE = 3
+
     def post(self, request):
-        contact = request.data.get('contact')
+        contact = request.data.get('contact', '').strip()
 
         if not contact:
-            return CustomResponse.error_response(message="Malumot bo'sh bo'lishi mumkin emas.")
+            return CustomResponse.error_response(message="Email yoki telefon raqam kelishi shart.")
 
-        user_codes = SmsCode.objects.filter(contact=contact, verified=False).last()
+        user_code_obj = SmsCode.objects.filter(
+            contact=contact,
+            verified=False,
+            delete_obj__gte=timezone.now()
+        ).order_by('-created_at').first()
 
-        if not user_codes:
-            return CustomResponse.error_response(message="Kod topilmadi")
+        if not user_code_obj:
+            return CustomResponse.error_response(message='Kod topilmadi.')
 
-        if user_codes.attempts >= 3:
-            user_codes.delete()
-            try:
-                User.objects.get(contact=contact).delete()
-            except User.DoesNotExist:
-                pass
+        if user_code_obj.resend_code >= self.MAX_RESEND_CODE:
             return CustomResponse.error_response(message="Urinishlar soni tugadi.")
 
         code = generate_code()
+        user_code_obj.resend_code += 1
+        user_code_obj.expires_at = timezone.now() + timedelta(seconds=180)
+        user_code_obj.attempts = 0
+        user_code_obj.hash_code = make_password(code)
+        user_code_obj.save()
         send_verification_code(contact, code)
-
-        user_codes.attempts += 1
-        user_codes.save()
         return CustomResponse.success_response(data={"contact": contact}, message="Kod qaytadan yuborildi.")
 
-class UserModelViewSet(BaseModelViewSet):
-    queryset = User.objects.all()
-    permission_classes = [UserDetailPermission]
 
-    def get_serializer_class(self):
-        if self.action == 'list':
-            return UserListSerializer
-        elif self.action == 'create':
-            return RegisterSerializer
-        else:
-            return UserDetailSerializer
+class UserRetrieveUpdateAPIView(RetrieveUpdateAPIView):
+    serializer_class = UserDetailSerializer
+    permission_classes = [UserDetailPermission]
+    parser_classes = [MultiPartParser, FormParser]
+
+    def get_object(self):
+        return self.request.user

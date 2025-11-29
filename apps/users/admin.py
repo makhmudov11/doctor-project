@@ -9,8 +9,8 @@ User = get_user_model()
 
 @admin.register(User)
 class CustomUserAdmin(admin.ModelAdmin):
-    list_display = ['id', 'contact', 'contact_type', 'status', 'active_role', 'is_staff']
+    list_display = ['id', 'contact', 'contact_type', 'password', 'status', 'active_role', 'gender', 'created_at', 'is_staff']
 
 @admin.register(SmsCode)
 class AdminSmsCode(admin.ModelAdmin):
-    list_display = ['id', 'contact', 'expires_at', 'hash_code', 'verified']
+    list_display = ['id', 'contact', 'expires_at', 'hash_code', 'verified', '_type', 'resend_code', 'attempts', 'delete_obj']

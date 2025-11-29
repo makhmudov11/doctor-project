@@ -1,6 +1,8 @@
 from django.db import models
 
 
+
+
 class CreateUpdateBaseModel(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
@@ -8,3 +10,8 @@ class CreateUpdateBaseModel(models.Model):
 
     class Meta:
         abstract = True
+
+
+class Gender(models.TextChoices):
+    ERKAK = 'ERKAK', 'Erkak'
+    AYOL = 'AYOL', 'Ayol'
