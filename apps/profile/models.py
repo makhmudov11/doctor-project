@@ -126,3 +126,23 @@ class StoryView(CreateUpdateBaseModel):
         db_table = 'story_view'
         verbose_name = 'Story View'
         verbose_name_plural = 'Story Viewers'
+
+class FollowChoices(models.TextChoices):
+    follow = ('follow', 'Follow')
+    unfollow = ('unfollow', 'Unfollow')
+
+
+
+class Follow(CreateUpdateBaseModel):
+    profile = models.ForeignKey(Profile, on_delete=models.CASCADE, related_name='following')
+    following = models.ForeignKey(Profile, on_delete=models.CASCADE, related_name='followers')
+    status = models.CharField(max_length=50, null=True,
+                              default=FollowChoices.follow,
+                              choices=FollowChoices.choices)
+
+    class Meta:
+        unique_together = ('profile', 'following')
+
+
+    def __str__(self):
+        return f"{self.profile.full_name} --> {self.following.full_name}"

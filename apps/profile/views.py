@@ -1,3 +1,4 @@
+from django.db.models import F
 from django.db import transaction, IntegrityError
 from django.utils import timezone
 from django_filters.rest_framework import DjangoFilterBackend
@@ -11,7 +12,7 @@ from rest_framework.views import APIView
 
 from apps.admin.permissions.users import AdminPermission
 from apps.profile.filters import UserProfileListFilter, UserStoryListFilter
-from apps.profile.models import Profile, Story, StoryView
+from apps.profile.models import Profile, Story, StoryView, Follow, FollowChoices
 from apps.profile.paginations import UserProfileListPagination, UserStoryListPagination
 from apps.profile.permission import UserActiveStoryPermission
 from apps.profile.serializers import UserProfileListSerializer, UserProfileDetailSerializer, UserStoryCreateSerializer, \
@@ -147,3 +148,74 @@ class UserStoryMarkViewedAPIView(APIView):
                 "story": story
             })
         return CustomResponse.success_response(serializer.data)
+
+
+class UserProfileFollowAPIView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request, profile_id):
+        if not profile_id:
+            return CustomResponse.error_response(message='Profile id kelishi shart')
+
+        profile = request.user.profile
+        if not profile:
+            return CustomResponse.error_response(message='Userga tegishli profil topilmadi')
+
+        try:
+            following_user = Profile.objects.get(id=profile_id)
+        except Profile.DoesNotExist:
+            return CustomResponse.error_response(
+                message=f'{profile_id}-idlik userga tegishli profil mavjud emas'
+            )
+
+        user, created = Follow.objects.get_or_create(
+            profile=profile,
+            following=following_user
+        )
+        if not created:
+            return CustomResponse.error_response(message="Qayta follow qilish iloji yo'q")
+
+        followers_count = Follow.objects.filter(following=profile, status=FollowChoices.follow).count()
+        Profile.objects.filter(id=profile.id).update(
+            following_count=F('following_count') + 1,
+            followers_count= followers_count
+        )
+
+        user = UserProfileDetailSerializer(profile).data
+        following_user = UserProfileDetailSerializer(following_user).data
+        return CustomResponse.success_response(data={
+            "user": user,
+            "following_user": following_user
+        })
+
+
+# class UserUnFollowAPIView(APIView):
+#     permission_classes = [IsAuthenticated]
+#
+#     def post(self, request, profile_id):
+#         if not profile_id:
+#             return CustomResponse.error_response(message='Profile id kelishi shart')
+#
+#         profile = request.user.profile
+#         if not profile:
+#             return CustomResponse.error_response(message='Userga tegishli profil topilmadi')
+#
+#         try:
+#             unfollowing_user = Profile.objects.get(id=profile_id)
+#         except Profile.DoesNotExist:
+#             return CustomResponse.error_response(
+#                 message=f'{profile_id}-idlik userga tegishli profil mavjud emas'
+#             )
+#
+#         try:
+#             is_following = Follow.objects.select_realated('profile', 'following').filter(
+#                 profile=profile,
+#                 following=unfollowing_user,
+#                 status='follow'
+#             )
+#         except Follow.DoesNotExist:
+#             return CustomResponse.error_response(
+#                 message=f'Siz {unfollowing_user.full_name or unfollowing_user.username} ga follow bolmagansiz'
+#             )
+#         is_following.status = FollowChoices.unfollow
+#         is_following.save(update_fields['status'])
