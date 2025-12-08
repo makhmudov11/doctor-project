@@ -1,12 +1,15 @@
 from datetime import timedelta
 
+import jwt
+import requests
 from django.contrib.auth import get_user_model
 from django.contrib.auth.hashers import check_password, make_password
 
 from django.utils import timezone
+from rest_framework import status
 from rest_framework.parsers import MultiPartParser, FormParser
 from rest_framework.status import HTTP_401_UNAUTHORIZED, HTTP_201_CREATED, \
-    HTTP_404_NOT_FOUND
+    HTTP_404_NOT_FOUND, HTTP_400_BAD_REQUEST
 
 from apps.users.permissions import UserDetailPermission
 from apps.utils import CustomResponse
@@ -157,9 +160,9 @@ class VerifyCodeAPIView(APIView):
             user_code_obj.verified = True
             user_code_obj.save()
             return CustomResponse.success_response(
-                                            message="Parol o'zgartirish uchun kod tasdiqlandi",
-                                            data={"user" : user}
-                                                )
+                message="Parol o'zgartirish uchun kod tasdiqlandi",
+                data={"user": user}
+            )
         else:
             user_code_obj.verified = True
             user_code_obj.save()
@@ -272,3 +275,171 @@ class UserResetPasswordAPIView(APIView):
         user.save()
         user = UserSerializer(user).data
         return CustomResponse.success_response(message="Parol muvaffaqiyatli o'zgartirildi", data={"user": user})
+
+
+class UserGoogleSocialAuthAPIView(APIView):
+
+    def post(self, request):
+        code = request.data.get("code")
+        if not code:
+            return CustomResponse.error_response(message="Code kelishi shart",
+                                                 code=status.HTTP_400_BAD_REQUEST)
+
+        token_url = "https://oauth2.googleapis.com/token"
+        data = {
+            "code": code,
+            "client_id": "<GOOGLE_CLIENT_ID>",
+            "client_secret": "<GOOGLE_SECRET>",
+            "redirect_uri": "<REDIRECT_URI>",
+            "grant_type": "authorization_code"
+        }
+        token_res = requests.post(token_url, data=data).json()
+        if "error" in token_res:
+            return CustomResponse.error_response(message=token_res["error"], code=status.HTTP_400_BAD_REQUEST)
+        access_token = token_res.get("access_token")
+        if not access_token:
+            return CustomResponse.error_response(message="Google token xato", code=status.HTTP_400_BAD_REQUEST)
+
+        userinfo = requests.get(
+            "https://www.googleapis.com/oauth2/v3/userinfo",
+            headers={"Authorization": f"Bearer {access_token}"}
+        ).json()
+        email = userinfo.get("email") or ''
+        full_name = userinfo.get("name") or ''
+        user_id = userinfo.get("sub") or ''
+
+        if not email:
+            return CustomResponse.error_response(message="Email bo'lishi shart", code=HTTP_404_NOT_FOUND)
+
+        user, created = User.objects.get_or_create(
+            email=email,
+            defaults={"full_name": full_name or ''}
+        )
+
+        token = get_tokens_for_user(user)
+        user = UserSerializer(user).data
+        return CustomResponse.success_response(
+            message='Muvaffaqiyatli yakunlandi',
+            data={"user" : user, "token" : token}
+        )
+
+
+class UserFacebookSocialAuthAPIView(APIView):
+
+    def post(self, request):
+        code = request.data.get("code")
+        if not code:
+            return CustomResponse.error_response(message="Code kelishi shart",
+                                                 code=status.HTTP_400_BAD_REQUEST)
+
+        token_url = (f"https://graph.facebook.com/v17.0/oauth/access_token?client_id={client_id}&"
+                     f"redirect_uri={redirect_uri}&client_secret={client_secret}&code={code}")
+        token_res = requests.get(token_url).json()
+        if "error" in token_res:
+            return CustomResponse.error_response(message=token_res["error"], code=status.HTTP_400_BAD_REQUEST)
+        access_token = token_res.get("access_token")
+        if not access_token:
+            return CustomResponse.error_response(message="Facebook token xato", code=status.HTTP_400_BAD_REQUEST)
+
+        userinfo = requests.get(f"https://graph.facebook.com/me?fields=id,name,email&access_token={access_token}").json()
+        user_id = userinfo.get("id") or ''
+        email = userinfo.get("email") or ''
+        full_name = userinfo.get("name") or ''
+
+        if not email:
+            return CustomResponse.error_response(message="Email bo'lishi shart", code=HTTP_404_NOT_FOUND)
+
+        user, created = User.objects.get_or_create(
+            email=email,
+            defaults={"full_name": full_name or ""}
+        )
+
+        token = get_tokens_for_user(user)
+        user = UserSerializer(user).data
+        return CustomResponse.success_response(
+            message='Muvaffaqiyatli yakunlandi',
+            data={"user" : user, "token" : token}
+        )
+
+
+
+
+class UserAppleSocialAuthAPIView(APIView):
+    def post(self, request):
+        code = request.data.get("code")
+        if not code:
+            return CustomResponse.error_response(message="Code kelishi shart",
+                                                 code=status.HTTP_400_BAD_REQUEST)
+
+        token_url = "https://appleid.apple.com/auth/token"
+        data = {
+            "client_id": "<APPLE_CLIENT_ID>",
+            "client_secret": "<APPLE_CLIENT_SECRET>",
+            "code": code,
+            "grant_type": "authorization_code",
+            "redirect_uri": "<REDIRECT_URI>",
+        }
+        token_res = requests.post(token_url, data=data).json()
+        if "error" in token_res:
+            return CustomResponse.error_response(message=token_res["error"], code=status.HTTP_400_BAD_REQUEST)
+        id_token = token_res.get("id_token")
+        if not id_token:
+            return CustomResponse.error_response(message="Apple token xato", code=status.HTTP_400_BAD_REQUEST)
+
+        decoded = jwt.decode(id_token, options={"verify_signature": False})
+        email = decoded.get("email") or ''
+        full_name = decoded.get("name") or ''
+        user_id = decoded.get("sub") or ''
+
+        if not email:
+            return CustomResponse.error_response(message="Email bo'lishi shart", code=HTTP_404_NOT_FOUND)
+
+        user, created = User.objects.get_or_create(
+            email=email,
+            defaults={"full_name": full_name or ""}
+        )
+
+        token = get_tokens_for_user(user)
+        user = UserSerializer(user).data
+        return CustomResponse.success_response(
+            message='Muvaffaqiyatli yakunlandi',
+            data={"user" : user, "token" : token}
+        )
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+            token_res = requests.post(token_url, data=data).json()
+            access_token = token_res.get("access_token")
+            if not access_token:
+                return CustomResponse.error_response(message="Facebook token xato", code=status.HTTP_400_BAD_REQUEST)
+
+        elif provider.lower() == "apple":
+
+        else:
+            return CustomResponse.error_response(message="Provider noto‘g‘ri", code=status.HTTP_400_BAD_REQUEST)
+
+

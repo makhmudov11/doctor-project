@@ -10,9 +10,11 @@ For the full list of settings and their values, see
 https://docs.djangoproject.com/en/5.2/ref/settings/
 """
 import os
+import time
 from datetime import timedelta
 from pathlib import Path
 
+import jwt
 import rest_framework.authentication
 from decouple import config, Csv
 
@@ -172,9 +174,32 @@ EMAIL_USE_TLS = config('EMAIL_USE_TLS')
 EMAIL_HOST_USER = config('EMAIL_HOST_USER')
 EMAIL_HOST_PASSWORD = config('EMAIL_HOST_PASSWORD')
 
+
 SPECTACULAR_SETTINGS = {
     'TITLE': 'My API',
     'DESCRIPTION': 'API docs',
     'VERSION': '1.0.0',
     'COMPONENT_SPLIT_REQUEST': True,
 }
+
+TEAM_ID = "<YOUR_TEAM_ID>"
+CLIENT_ID = "<YOUR_SERVICE_ID>"
+KEY_ID = "<YOUR_KEY_ID>"
+PRIVATE_KEY = """-----BEGIN PRIVATE KEY-----
+...
+-----END PRIVATE KEY-----"""
+
+headers = {
+    "kid": KEY_ID,
+    "alg": "ES256"
+}
+
+payload = {
+    "iss": TEAM_ID,
+    "iat": int(time.time()),
+    "exp": int(time.time()) + 86400 * 180,
+    "aud": "https://appleid.apple.com",
+    "sub": CLIENT_ID
+}
+
+client_secret = jwt.encode(payload, PRIVATE_KEY, algorithm="ES256", headers=headers)

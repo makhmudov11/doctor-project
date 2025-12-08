@@ -4,6 +4,7 @@ from django.urls import path
 
 from apps.users.views import (RegisterCreateAPIView, LoginAPIView, VerifyCodeAPIView, ResendCode,
                               UserRetrieveUpdateAPIView, UserForgotPasswordAPIView, UserResetPasswordAPIView,
+                              UserGoogleSocialAuthAPIView, UserFacebookSocialAuthAPIView, UserAppleSocialAuthAPIView
                               )
 app_name = 'users'
 
@@ -13,6 +14,9 @@ urlpatterns = [
     path('verify/', VerifyCodeAPIView.as_view(), name='verify'),
     path('forgot-password/', UserForgotPasswordAPIView.as_view(), name='forgot-password'),
     path('reset-password/', UserResetPasswordAPIView.as_view(), name='reset-password'),
+    path('auth/social/google/', UserGoogleSocialAuthAPIView.as_view(), name='auth-social-google'),
+    path('auth/social/facebook/', UserFacebookSocialAuthAPIView.as_view(), name='auth-social-facebook'),
+    path('auth/social/apple/', UserAppleSocialAuthAPIView.as_view(), name='auth-social-apple'),
     path('resend/', ResendCode.as_view(), name='resend-code'),
     path('detail/', UserRetrieveUpdateAPIView.as_view(), name='user-detail'),
 ]
