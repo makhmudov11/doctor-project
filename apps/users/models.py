@@ -20,10 +20,24 @@ class CustomUserRoleChoices(models.TextChoices):
     MENEJER = "Menejer", _("Menejer")
 
 
+class UserSocialAuthRegistrationTypeChoices(models.TextChoices):
+    GOOGLE = ("google", "Google")
+    FACEBOOK = ("facebook", "Facebook")
+    APPLE = ("apple", "Apple")
+
+
+class UserContactTypeChoices(models.TextChoices):
+    PHONE = ('phone', 'Phone Number')
+    EMAIL = ('email', 'Email')
+
+
 class CustomUser(AbstractBaseUser, PermissionsMixin, CreateUpdateBaseModel):
     full_name = models.CharField(max_length=200, null=True)
     contact = models.CharField(max_length=200, unique=True, db_index=True)
-    contact_type = models.CharField(max_length=100, null=True)
+    contact_type = models.CharField(max_length=100, null=True, choices=UserContactTypeChoices.choices)
+    registration_type = models.CharField(null=True, blank=True,
+                                         choices=UserSocialAuthRegistrationTypeChoices.choices
+                                         )
     active_role = models.CharField(max_length=30,
                                    choices=CustomUserRoleChoices.choices,
                                    default=CustomUserRoleChoices.FOYDALANUVCHI,

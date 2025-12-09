@@ -2,9 +2,8 @@ from django.contrib.auth import get_user_model
 from django.utils import timezone
 from drf_spectacular.utils import extend_schema_field
 from rest_framework import serializers
-from rest_framework.exceptions import ValidationError
 
-from apps.users.models import SmsCode
+from apps.users.models import SmsCode, UserContactTypeChoices
 from apps.utils.CustomValidationError import CustomValidationError
 from apps.utils.validates import validate_email_or_phone_number
 
@@ -30,13 +29,11 @@ class RegisterSerializer(serializers.ModelSerializer):
         contact = attrs.get('contact').strip()
         result = validate_email_or_phone_number(contact)
 
-        if not result in ['email', 'phone']:
+        if not result in [UserContactTypeChoices.EMAIL, UserContactTypeChoices.PHONE]:
             raise CustomValidationError(detail='Email yoki telefon raqam formati xato.')
 
         attrs['contact_type'] = result
         return attrs
-
-
 
     def create(self, validated_data):
         contact = validated_data.get('contact')
@@ -85,6 +82,7 @@ class UserSerializer(serializers.ModelSerializer):
             return (timezone.localtime(obj.last_login).strftime('%Y-%m-%d %H:%M:%S'))
         return None
 
+
 class SmsCodeSerializer(serializers.ModelSerializer):
     class Meta:
         model = SmsCode
@@ -106,42 +104,39 @@ class ResendCodeSerializer(serializers.Serializer):
     contact = serializers.CharField(max_length=200, required=True)
 
 
-
 class UserListSerializer(serializers.ModelSerializer):
     class Meta:
         model = User
         fields = ['id', 'contact', 'full_name', 'birth_date', 'image', 'created_at', 'active_role', 'status']
 
-class UserDetailSerializer(serializers.ModelSerializer):
 
+class UserDetailSerializer(serializers.ModelSerializer):
     image = serializers.FileField(required=False, allow_null=True)
 
     class Meta:
         model = User
         fields = ['id', 'contact', 'full_name', 'birth_date', 'image', 'created_at', 'active_role', 'status']
         extra_kwargs = {
-            "id" : {"read_only" : True},
-            "contact" : {"read_only" : True},
-        #     "image" : {"read_only" : True},
-            "created_at" : {"read_only" : True},
-            "active_role" : {"read_only" : True},
-            "status" : {"read_only" : True},
+            "id": {"read_only": True},
+            "contact": {"read_only": True},
+            #     "image" : {"read_only" : True},
+            "created_at": {"read_only": True},
+            "active_role": {"read_only": True},
+            "status": {"read_only": True},
         }
 
 
 class UserForgotPasswordSerializer(serializers.Serializer):
     contact = serializers.CharField(max_length=100)
 
-
     def validate_contact(self, contact):
         contact = contact.strip()
         contact_type = validate_email_or_phone_number(contact)
 
-        if contact_type not in ['email', 'phone']:
+        if contact_type not in [UserContactTypeChoices.EMAIL, UserContactTypeChoices.PHONE]:
             raise CustomValidationError(detail='Email yoki telefon formati xato.')
 
         return contact
-
 
 
 class UserResetPasswordSerializer(serializers.Serializer):

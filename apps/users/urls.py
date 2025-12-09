@@ -4,8 +4,9 @@ from django.urls import path
 
 from apps.users.views import (RegisterCreateAPIView, LoginAPIView, VerifyCodeAPIView, ResendCode,
                               UserRetrieveUpdateAPIView, UserForgotPasswordAPIView, UserResetPasswordAPIView,
-                              UserGoogleSocialAuthAPIView, UserFacebookSocialAuthAPIView, UserAppleSocialAuthAPIView
                               )
+from apps.users.social_auth.views import (UserGoogleSocialAuthAPIView, UserFacebookSocialAuthAPIView,
+                                          UserAppleSocialAuthAPIView)
 app_name = 'users'
 
 urlpatterns = [

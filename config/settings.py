@@ -182,24 +182,28 @@ SPECTACULAR_SETTINGS = {
     'COMPONENT_SPLIT_REQUEST': True,
 }
 
-TEAM_ID = "<YOUR_TEAM_ID>"
-CLIENT_ID = "<YOUR_SERVICE_ID>"
-KEY_ID = "<YOUR_KEY_ID>"
-PRIVATE_KEY = """-----BEGIN PRIVATE KEY-----
-...
------END PRIVATE KEY-----"""
+#APPLE KEY
+TEAM_ID = config('TEAM_ID')
+CLIENT_ID = config('CLIENT_ID')
+KEY_ID = config('KEY_ID')
+PRIVATE_KEY = config('PRIVATE_KEY')
 
-headers = {
-    "kid": KEY_ID,
-    "alg": "ES256"
+
+
+SOCIAL_AUTH_KEYS = {
+    "GOOGLE" : {
+        "GOOGLE_CLIENT_ID" : config('GOOGLE_CLIENT_ID'),
+        "GOOGLE_SECRET" : config('GOOGLE_SECRET')
+    },
+    "FACEBOOK" : {
+        "FACEBOOK_CLIENT_ID" : config('FACEBOOK_CLIENT_ID'),
+        "FACEBOOK_SECRET" : config('FACEBOOK_SECRET')
+    },
+    "APPLE" : {
+        "APPLE_CLIENT_ID" : config('APPLE_CLIENT_ID'),
+        "APPLE_CLIENT_SECRET" : config('APPLE_CLIENT_SECRET'),
+        "APPLE_PUBLIC_URL" : config("APPLE_PUBLIC_URL")
+    },
+    "REDIRECT_URI" : config('REDIRECT_URI')
+
 }
-
-payload = {
-    "iss": TEAM_ID,
-    "iat": int(time.time()),
-    "exp": int(time.time()) + 86400 * 180,
-    "aud": "https://appleid.apple.com",
-    "sub": CLIENT_ID
-}
-
-client_secret = jwt.encode(payload, PRIVATE_KEY, algorithm="ES256", headers=headers)
