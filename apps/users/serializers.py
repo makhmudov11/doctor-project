@@ -84,9 +84,11 @@ class UserSerializer(serializers.ModelSerializer):
 
 
 class SmsCodeSerializer(serializers.ModelSerializer):
+
     class Meta:
         model = SmsCode
-        fields = ['id', 'contact', 'attempts', 'verified', 'expires_at', '_type', 'created_at']
+        fields = ['id', 'contact', 'attempts', 'resend_code', 'verified',
+                  'expires_at', 'delete_obj', '_type', 'created_at']
 
 
 class VerifyCodeSerializer(serializers.Serializer):

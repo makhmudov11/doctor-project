@@ -3,6 +3,7 @@ from datetime import timedelta
 from django.contrib.auth.base_user import AbstractBaseUser
 from django.contrib.auth.models import PermissionsMixin
 from django.db import models
+from django.db.models import Q
 from django.utils import timezone
 from django.utils.translation import gettext_lazy as _
 from apps.users.managers import CustomUserManager
@@ -69,6 +70,12 @@ class CustomUser(AbstractBaseUser, PermissionsMixin, CreateUpdateBaseModel):
         return f"{self.full_name.title()}" or self.contact
 
 
+class SmsCodeTypeChoices(models.TextChoices):
+    LOGIN = 'login', 'Login'
+    REGISTER = 'register', 'Register'
+    CHANGE_PASSWORD = 'change-password', 'Change Password'
+
+
 class SmsCode(CreateUpdateBaseModel):
     contact = models.CharField(max_length=255)
     hash_code = models.CharField(max_length=255)
@@ -77,7 +84,8 @@ class SmsCode(CreateUpdateBaseModel):
     verified = models.BooleanField(default=False)
     expires_at = models.DateTimeField(null=True, blank=True)
     delete_obj = models.DateTimeField(null=True, blank=True)
-    _type = models.CharField(max_length=50, null=True) # login yoki register
+    _type = models.CharField(max_length=50, null=True,
+                             choices=SmsCodeTypeChoices.choices)  # login yoki register and change-password
 
     def is_expired(self):
         if not self.expires_at:
@@ -89,19 +97,19 @@ class SmsCode(CreateUpdateBaseModel):
             self.verified = True
             self.save()
 
-
     @classmethod
     def create_for_contact(cls, contact, hash_code, _type='', second=180):
         cls.objects.filter(
-            delete_obj__lt=timezone.now(),
             verified=False
+        ).filter(
+            Q(delete_obj__lt=timezone.now()) | Q(resend_code__gte=3)
         ).delete()
 
         sms_code_obj = cls.objects.create(
             contact=contact,
             hash_code=hash_code,
             expires_at=timezone.now() + timedelta(seconds=second),
-            delete_obj=timezone.now() + timedelta(minutes=2),
+            delete_obj=timezone.now() + timedelta(minutes=10),
             _type=_type
         )
         return sms_code_obj

@@ -13,7 +13,7 @@ from apps.utils import CustomResponse
 from rest_framework.generics import CreateAPIView, RetrieveUpdateAPIView
 from rest_framework.views import APIView
 
-from apps.users.models import SmsCode, UserContactTypeChoices
+from apps.users.models import SmsCode, UserContactTypeChoices, SmsCodeTypeChoices
 from apps.users.serializers import (RegisterSerializer, LoginSerializer, UserSerializer, VerifyCodeSerializer,
                                     UserDetailSerializer, ResendCodeSerializer, SmsCodeSerializer,
                                     UserForgotPasswordSerializer, UserResetPasswordSerializer, )
@@ -23,7 +23,6 @@ from apps.users.tasks import send_verification_code
 from apps.utils.generate_code import generate_code
 from apps.utils.token_claim import get_tokens_for_user
 from apps.utils.validates import validate_email_or_phone_number
-from config.settings import SOCIAL_AUTH_KEYS
 
 User = get_user_model()
 
@@ -66,7 +65,7 @@ class RegisterCreateAPIView(CreateAPIView):
                 SmsCode.create_for_contact(
                     contact=contact,
                     hash_code=make_password(code),
-                    _type='register'
+                    _type=SmsCodeTypeChoices.REGISTER
                 )
                 send_verification_code(email=contact, code=code)
                 return CustomResponse.success_response(data={"user": user}, message="Kod yuborildi.")
@@ -86,7 +85,7 @@ class LoginAPIView(APIView):
         password = serializer.validated_data.get('password').strip()
 
         try:
-            user = User.objects.get(contact=contact)
+            user = User.objects.get(contact=contact, status=True)
         except User.DoesNotExist:
             return CustomResponse.error_response(message="User topilmadi", code=HTTP_404_NOT_FOUND)
 
@@ -98,7 +97,8 @@ class LoginAPIView(APIView):
         contact_type = validate_email_or_phone_number(contact)
         if contact_type == UserContactTypeChoices.EMAIL:
             code = generate_code()
-            user_code_obj = SmsCode.create_for_contact(contact=contact, hash_code=make_password(code), _type='login')
+            user_code_obj = SmsCode.create_for_contact(contact=contact, hash_code=make_password(code),
+                                                       _type=SmsCodeTypeChoices.LOGIN)
             user_code_data = SmsCodeSerializer(user_code_obj).data
             send_verification_code(email=contact, code=code)
             return CustomResponse.success_response(
@@ -140,13 +140,19 @@ class VerifyCodeAPIView(APIView):
             user_code_obj.attempts += 1
             user_code_obj.save()
 
-            if user_code_obj.attempts >= self.MAX_ATTEMPTS:
+            if user_code_obj.attempts > self.MAX_ATTEMPTS:
                 return CustomResponse.error_response(message="Urinishlar soni tugadi.")
 
             return CustomResponse.error_response(
-                message=f"Kod noto'g'ri kiritildi. Qolgan urinshlar: {self.MAX_ATTEMPTS - user_code_obj.attempts}")
+                message=f"Kod noto'g'ri kiritildi.",
+                data={
+                    "sms_code_obj" : SmsCodeSerializer(user_code_obj).data,
+                    "qolgan_urinishlar_soni" : self.MAX_ATTEMPTS - user_code_obj.attempts
+                },
 
-        if user_code_obj._type == 'register':
+            )
+
+        if user_code_obj._type == SmsCodeTypeChoices.REGISTER:
             user.status = True
             user.save()
             user_data = UserSerializer(user).data
@@ -155,7 +161,7 @@ class VerifyCodeAPIView(APIView):
             return CustomResponse.success_response(
                 message="Registratsiya muvaffqaiyatli bajarildi, foydalanuvchi yaratildi",
                 data=user_data, code=HTTP_201_CREATED)
-        elif user_code_obj._type == 'change-password':
+        elif user_code_obj._type == SmsCodeTypeChoices.CHANGE_PASSWORD:
             user_code_obj.verified = True
             user_code_obj.save()
             return CustomResponse.success_response(
@@ -194,7 +200,10 @@ class ResendCode(APIView):
             return CustomResponse.error_response(message='Kod topilmadi.')
 
         if user_code_obj.resend_code >= self.MAX_RESEND_CODE:
-            return CustomResponse.error_response(message="Urinishlar soni tugadi.")
+            return CustomResponse.error_response(
+                message="Urinishlar soni tugadi.",
+                data=SmsCodeSerializer(user_code_obj).data
+            )
 
         code = generate_code()
         user_code_obj.resend_code += 1
@@ -203,7 +212,15 @@ class ResendCode(APIView):
         user_code_obj.hash_code = make_password(code)
         user_code_obj.save()
         send_verification_code(contact, code)
-        return CustomResponse.success_response(data={"contact": contact}, message="Kod qaytadan yuborildi.")
+        sms_code_obj = SmsCodeSerializer(user_code_obj).data
+        return CustomResponse.success_response(
+            data={
+                "contact": contact,
+                "sms_code_obj" : sms_code_obj,
+                "qayta_jonatish_qoldi" : self.MAX_RESEND_CODE - sms_code_obj['resend_code']
+            },
+            message="Kod qaytadan yuborildi."
+        )
 
 
 class UserRetrieveUpdateAPIView(RetrieveUpdateAPIView):
