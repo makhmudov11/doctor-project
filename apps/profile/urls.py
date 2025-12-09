@@ -2,7 +2,7 @@ from django.urls import path
 
 from apps.profile.views import UserProfileListAPIView, UserProfileRetrieveUpdateDestroyAPIView, \
     UserStoryCreateAPIView, UserStoryListAPIView, UserActiveStoryListAPIView, UserStoryMarkViewedAPIView, \
-    UserProfileFollowAPIView
+    UserProfileFollowAPIView, UserUnFollowAPIView
 
 app_name = 'profile'
 
@@ -14,7 +14,7 @@ urlpatterns = [
     path('story/active/', UserActiveStoryListAPIView.as_view(), name='story_active'),
     path('story/<int:story_id>/view/', UserStoryMarkViewedAPIView.as_view(), name='story_view'),
     path('<int:profile_id>/follow/', UserProfileFollowAPIView.as_view(), name='following'),
-    path('<int:profile_id>/unfollow/', UserStoryMarkViewedAPIView.as_view(), name='unfollow'),
+    path('<int:profile_id>/unfollow/', UserUnFollowAPIView.as_view(), name='unfollow'),
     # path('me/following/', UserStoryMarkViewedAPIView.as_view(), name='mark_viewed'),
     # path('me/followers/', UserStoryMarkViewedAPIView.as_view(), name='mark_viewed'),
 ]

@@ -81,5 +81,3 @@ class UserStoryMarkViewedSerializer(serializers.Serializer):
 
 
 
-
-

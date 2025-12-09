@@ -154,6 +154,38 @@ class UserProfileFollowAPIView(APIView):
     permission_classes = [IsAuthenticated]
 
     def post(self, request, profile_id):
+        profile = request.user.profile
+
+        try:
+            following_user = Profile.objects.get(id=profile_id)
+        except Profile.DoesNotExist:
+            return CustomResponse.error_response(
+                message=f'{profile_id}-idlik profil mavjud emas'
+            )
+
+        follow_obj, created = Follow.objects.get_or_create(
+            profile=profile,
+            following=following_user,
+            defaults={"status": FollowChoices.follow}
+        )
+
+        if not created and follow_obj.status == FollowChoices.follow:
+            return CustomResponse.error_response(message="Siz allaqachon follow qilgansiz")
+
+        follow_obj.status = FollowChoices.follow
+        follow_obj.save(update_fields=['status'])
+
+        data = {
+            "user": UserProfileDetailSerializer(profile).data,
+            "following_user": UserProfileDetailSerializer(following_user).data,
+        }
+        return CustomResponse.success_response(data=data)
+
+
+class UserUnFollowAPIView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request, profile_id):
         if not profile_id:
             return CustomResponse.error_response(message='Profile id kelishi shart')
 
@@ -162,60 +194,32 @@ class UserProfileFollowAPIView(APIView):
             return CustomResponse.error_response(message='Userga tegishli profil topilmadi')
 
         try:
-            following_user = Profile.objects.get(id=profile_id)
+            unfollowing_user = Profile.objects.get(id=profile_id)
         except Profile.DoesNotExist:
             return CustomResponse.error_response(
                 message=f'{profile_id}-idlik userga tegishli profil mavjud emas'
             )
 
-        user, created = Follow.objects.get_or_create(
+        is_following = Follow.objects.select_related('profile', 'following').filter(
             profile=profile,
-            following=following_user
+            following=unfollowing_user,
+            status=FollowChoices.follow
+        ).first()
+
+        if not is_following:
+            return CustomResponse.error_response(
+                message=f'Siz {unfollowing_user.full_name or unfollowing_user.username} ga follow bolmagansiz'
+            )
+
+        is_following.status = FollowChoices.unfollow
+        is_following.save(update_fields=['status'])
+        user = UserProfileListSerializer(profile).data
+        unfollowing_user = UserProfileListSerializer(unfollowing_user).data
+
+        return CustomResponse.success_response(
+            message='Unfollow muvaffaqiyatli bajarildi.',
+            data={
+                "user": user,
+                "unfollowing_user": unfollowing_user
+            }
         )
-        if not created:
-            return CustomResponse.error_response(message="Qayta follow qilish iloji yo'q")
-
-        followers_count = Follow.objects.filter(following=profile, status=FollowChoices.follow).count()
-        Profile.objects.filter(id=profile.id).update(
-            following_count=F('following_count') + 1,
-            followers_count= followers_count
-        )
-
-        user = UserProfileDetailSerializer(profile).data
-        following_user = UserProfileDetailSerializer(following_user).data
-        return CustomResponse.success_response(data={
-            "user": user,
-            "following_user": following_user
-        })
-
-
-# class UserUnFollowAPIView(APIView):
-#     permission_classes = [IsAuthenticated]
-#
-#     def post(self, request, profile_id):
-#         if not profile_id:
-#             return CustomResponse.error_response(message='Profile id kelishi shart')
-#
-#         profile = request.user.profile
-#         if not profile:
-#             return CustomResponse.error_response(message='Userga tegishli profil topilmadi')
-#
-#         try:
-#             unfollowing_user = Profile.objects.get(id=profile_id)
-#         except Profile.DoesNotExist:
-#             return CustomResponse.error_response(
-#                 message=f'{profile_id}-idlik userga tegishli profil mavjud emas'
-#             )
-#
-#         try:
-#             is_following = Follow.objects.select_realated('profile', 'following').filter(
-#                 profile=profile,
-#                 following=unfollowing_user,
-#                 status='follow'
-#             )
-#         except Follow.DoesNotExist:
-#             return CustomResponse.error_response(
-#                 message=f'Siz {unfollowing_user.full_name or unfollowing_user.username} ga follow bolmagansiz'
-#             )
-#         is_following.status = FollowChoices.unfollow
-#         is_following.save(update_fields['status'])
