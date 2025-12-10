@@ -14,7 +14,7 @@ User = get_user_model()
 
 class Profile(CreateUpdateBaseModel):
     user = models.OneToOneField(User, on_delete=models.CASCADE, related_name='profile')
-    username = models.CharField(max_length=250, null=True, blank=True, unique=True, db_index=True)
+    username = models.CharField(max_length=250, null=True, unique=True, db_index=True)
     full_name = models.CharField(max_length=250, null=True, blank=True)
     bio = models.CharField(max_length=255, null=True, blank=True)
     image = models.ImageField(upload_to="users/profile/image/", null=True, blank=True)
@@ -143,6 +143,9 @@ class Follow(CreateUpdateBaseModel):
     class Meta:
         unique_together = ('profile', 'following')
 
+        db_table = 'follow'
+        verbose_name = 'Follow'
+        verbose_name_plural = 'Follows'
 
     def __str__(self):
         return f"{self.profile.full_name} --> {self.following.full_name}"

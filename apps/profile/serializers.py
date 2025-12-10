@@ -56,7 +56,6 @@ class UserStoryListSerializer(serializers.ModelSerializer):
         ]
 
 
-
 class StoryElementSerializer(serializers.ModelSerializer):
     class Meta:
         model = Story
@@ -73,11 +72,7 @@ class UserStoryMarkViewedSerializer(serializers.Serializer):
     story = StoryElementSerializer()
 
 
-
-
-
-
-
-
-
-
+class UserProfileCreateSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Profile
+        fields = ['username', 'full_name', 'bio', 'image', 'website']

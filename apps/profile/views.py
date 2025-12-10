@@ -14,9 +14,10 @@ from apps.admin.permissions.users import AdminPermission
 from apps.profile.filters import UserProfileListFilter, UserStoryListFilter
 from apps.profile.models import Profile, Story, StoryView, Follow, FollowChoices
 from apps.profile.paginations import UserProfileListPagination, UserStoryListPagination
-from apps.profile.permission import UserActiveStoryPermission
+from apps.profile.permission import UserActiveStoryPermission, UserProfileDetailPermission
 from apps.profile.serializers import UserProfileListSerializer, UserProfileDetailSerializer, UserStoryCreateSerializer, \
-    UserStoryListSerializer, StoryElementSerializer, UserActiveStoriesSerializer, UserStoryMarkViewedSerializer
+    UserStoryListSerializer, StoryElementSerializer, UserActiveStoriesSerializer, UserStoryMarkViewedSerializer, \
+    UserProfileCreateSerializer
 from apps.users.permissions import UserListPermission
 from apps.utils import CustomResponse
 
@@ -35,7 +36,7 @@ class UserProfileListAPIView(ListAPIView):
 
 
 class UserProfileRetrieveUpdateDestroyAPIView(RetrieveUpdateDestroyAPIView):
-    permission_classes = [IsAuthenticated]
+    permission_classes = [UserProfileDetailPermission]
     parser_classes = [MultiPartParser, FormParser]
 
     def get_serializer_class(self):
@@ -149,40 +150,24 @@ class UserStoryMarkViewedAPIView(APIView):
             })
         return CustomResponse.success_response(serializer.data)
 
+class UserProfileCreateAPIView(CreateAPIView):
+    permission_classes = [IsAuthenticated]
+    serializer_class = UserProfileCreateSerializer
+    queryset = Profile.objects.all()
+
+    def create(self, request, *args, **kwargs):
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        profile = serializer.save(user=request.user)
+
+        data = UserProfileListSerializer(profile).data
+        return CustomResponse.success_response(data=data, code=HTTP_201_CREATED)
+
+
+
+
 
 class UserProfileFollowAPIView(APIView):
-    permission_classes = [IsAuthenticated]
-
-    def post(self, request, profile_id):
-        profile = request.user.profile
-
-        try:
-            following_user = Profile.objects.get(id=profile_id)
-        except Profile.DoesNotExist:
-            return CustomResponse.error_response(
-                message=f'{profile_id}-idlik profil mavjud emas'
-            )
-
-        follow_obj, created = Follow.objects.get_or_create(
-            profile=profile,
-            following=following_user,
-            defaults={"status": FollowChoices.follow}
-        )
-
-        if not created and follow_obj.status == FollowChoices.follow:
-            return CustomResponse.error_response(message="Siz allaqachon follow qilgansiz")
-
-        follow_obj.status = FollowChoices.follow
-        follow_obj.save(update_fields=['status'])
-
-        data = {
-            "user": UserProfileDetailSerializer(profile).data,
-            "following_user": UserProfileDetailSerializer(following_user).data,
-        }
-        return CustomResponse.success_response(data=data)
-
-
-class UserUnFollowAPIView(APIView):
     permission_classes = [IsAuthenticated]
 
     def post(self, request, profile_id):
@@ -194,32 +179,101 @@ class UserUnFollowAPIView(APIView):
             return CustomResponse.error_response(message='Userga tegishli profil topilmadi')
 
         try:
-            unfollowing_user = Profile.objects.get(id=profile_id)
+            following_user = Profile.objects.get(id=profile_id)
         except Profile.DoesNotExist:
             return CustomResponse.error_response(
                 message=f'{profile_id}-idlik userga tegishli profil mavjud emas'
             )
 
-        is_following = Follow.objects.select_related('profile', 'following').filter(
-            profile=profile,
-            following=unfollowing_user,
-            status=FollowChoices.follow
-        ).first()
+        if profile.id == following_user.id:
+            return CustomResponse.error_response(message="O'zingizni follow qila olmaysiz")
 
-        if not is_following:
-            return CustomResponse.error_response(
-                message=f'Siz {unfollowing_user.full_name or unfollowing_user.username} ga follow bolmagansiz'
+        follow_obj, created = Follow.objects.get_or_create(
+            profile=profile,
+            following=following_user
+        )
+
+        if created:
+            follow_obj.status = FollowChoices.follow
+            follow_obj.save()
+
+            Profile.objects.filter(id=profile.id).update(
+                following_count=F('following_count') + 1
             )
 
-        is_following.status = FollowChoices.unfollow
-        is_following.save(update_fields=['status'])
-        user = UserProfileListSerializer(profile).data
-        unfollowing_user = UserProfileListSerializer(unfollowing_user).data
+        else:
+            if follow_obj.status == FollowChoices.follow:
+                return CustomResponse.error_response(message="Siz allaqachon follow qilgansiz")
 
-        return CustomResponse.success_response(
-            message='Unfollow muvaffaqiyatli bajarildi.',
-            data={
-                "user": user,
-                "unfollowing_user": unfollowing_user
-            }
+            follow_obj.status = FollowChoices.follow
+            follow_obj.save()
+
+            Profile.objects.filter(id=profile.id).update(
+                following_count=F('following_count') + 1
+            )
+
+            Profile.objects.filter(id=following_user.id).update(
+                followers_count = F('followers_count') + 1
+            )
+
+        user_data = UserProfileDetailSerializer(profile).data
+        following_data = UserProfileDetailSerializer(following_user).data
+
+        return CustomResponse.success_response(data={
+            "user": user_data,
+            "following_user": following_data
+        })
+
+
+class UserUnFollowAPIView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request, profile_id):
+        if not profile_id:
+            return CustomResponse.error_response("Profile id kelishi shart")
+
+        profile = request.user.profile
+
+        try:
+            unfollowing_user = Profile.objects.get(id=profile_id)
+        except Profile.DoesNotExist:
+            return CustomResponse.error_response(
+                f"{profile_id}-idlik profil topilmadi"
+            )
+
+        if profile.id == unfollowing_user.id:
+            return CustomResponse.error_response("O'zingizni unfollow qila olmaysiz")
+
+        try:
+            follow_obj = Follow.objects.get(
+                profile=profile,
+                following=unfollowing_user,
+                status=FollowChoices.follow
+            )
+        except Follow.DoesNotExist:
+            return CustomResponse.error_response("Siz bu userni follow qilmagansiz")
+
+        follow_obj.status = FollowChoices.unfollow
+        follow_obj.save()
+
+        Profile.objects.filter(id=profile.id).update(
+            following_count=F('following_count') - 1
         )
+
+        Profile.objects.filter(id=unfollowing_user.id).update(
+            followers_count=F('followers_count') - 1
+        )
+
+        return CustomResponse.success_response({
+            "user": UserProfileDetailSerializer(profile).data,
+            "unfollowing_user": UserProfileDetailSerializer(unfollowing_user).data
+        })
+
+
+class UserProfileAPIView(APIView):
+    def get(self, request):
+        profile = self.request.user.profile
+        if not profile:
+            return CustomResponse.error_response(message='Profile topilmadi')
+        data = UserProfileListSerializer(profile).data
+        return CustomResponse.success_response(data=data)
