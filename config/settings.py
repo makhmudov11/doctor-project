@@ -70,7 +70,7 @@ ROOT_URLCONF = 'config.urls'
 TEMPLATES = [
     {
         'BACKEND': 'django.template.backends.django.DjangoTemplates',
-        'DIRS': [],
+        'DIRS': [BASE_DIR / 'templates'],
         'APP_DIRS': True,
         'OPTIONS': {
             'context_processors': [
@@ -145,8 +145,8 @@ AUTH_USER_MODEL = 'users.CustomUser'
 
 REST_FRAMEWORK = {
     'DEFAULT_AUTHENTICATION_CLASSES': [
-        'rest_framework.authentication.SessionAuthentication'
-        # 'rest_framework_simplejwt.authentication.JWTAuthentication',
+        # 'rest_framework.authentication.SessionAuthentication'
+        'rest_framework_simplejwt.authentication.JWTAuthentication',
     ],
     'DEFAULT_SCHEMA_CLASS': 'drf_spectacular.openapi.AutoSchema',
     'DEFAULT_FILTER_BACKENDS': [
@@ -155,15 +155,16 @@ REST_FRAMEWORK = {
     "DATETIME_FORMAT": "%Y-%m-%d %H:%M:%S",
     "DATE_FORMAT": "%Y-%m-%d",
 }
-
 AUTHENTICATION_BACKENDS = [
     'django.contrib.auth.backends.ModelBackend',
 ]
 
 SIMPLE_JWT = {
-    "ACCESS_TOKEN_LIFETIME": timedelta(days=1),
-    "REFRESH_TOKEN_LIFETIME": timedelta(days=2),
-    'AUTH_HEADER_TYPES': ('Bearer',)
+    "ACCESS_TOKEN_LIFETIME": timedelta(days=6),
+    "REFRESH_TOKEN_LIFETIME": timedelta(days=7),
+    'AUTH_HEADER_TYPES': ('Bearer',),
+    "ROTATE_REFRESH_TOKENS": True,
+    "BLACKLIST_AFTER_ROTATION": True,
 }
 
 # EMAIL
@@ -174,7 +175,6 @@ EMAIL_USE_TLS = config('EMAIL_USE_TLS')
 EMAIL_HOST_USER = config('EMAIL_HOST_USER')
 EMAIL_HOST_PASSWORD = config('EMAIL_HOST_PASSWORD')
 
-
 SPECTACULAR_SETTINGS = {
     'TITLE': 'My API',
     'DESCRIPTION': 'API docs',
@@ -182,28 +182,26 @@ SPECTACULAR_SETTINGS = {
     'COMPONENT_SPLIT_REQUEST': True,
 }
 
-#APPLE KEY
+# APPLE KEY
 TEAM_ID = config('TEAM_ID')
 CLIENT_ID = config('CLIENT_ID')
 KEY_ID = config('KEY_ID')
 PRIVATE_KEY = config('PRIVATE_KEY')
 
-
-
 SOCIAL_AUTH_KEYS = {
-    "GOOGLE" : {
-        "GOOGLE_CLIENT_ID" : config('GOOGLE_CLIENT_ID'),
-        "GOOGLE_SECRET" : config('GOOGLE_SECRET')
+    "GOOGLE": {
+        "GOOGLE_CLIENT_ID": config('GOOGLE_CLIENT_ID'),
+        "GOOGLE_SECRET": config('GOOGLE_SECRET')
     },
-    "FACEBOOK" : {
-        "FACEBOOK_CLIENT_ID" : config('FACEBOOK_CLIENT_ID'),
-        "FACEBOOK_SECRET" : config('FACEBOOK_SECRET')
+    "FACEBOOK": {
+        "FACEBOOK_CLIENT_ID": config('FACEBOOK_CLIENT_ID'),
+        "FACEBOOK_SECRET": config('FACEBOOK_SECRET')
     },
-    "APPLE" : {
-        "APPLE_CLIENT_ID" : config('APPLE_CLIENT_ID'),
-        "APPLE_CLIENT_SECRET" : config('APPLE_CLIENT_SECRET'),
-        "APPLE_PUBLIC_URL" : config("APPLE_PUBLIC_URL")
+    "APPLE": {
+        "APPLE_CLIENT_ID": config('APPLE_CLIENT_ID'),
+        "APPLE_CLIENT_SECRET": config('APPLE_CLIENT_SECRET'),
+        "APPLE_PUBLIC_URL": config("APPLE_PUBLIC_URL")
     },
-    "REDIRECT_URI" : config('REDIRECT_URI')
+    "REDIRECT_URI": config('REDIRECT_URI')
 
 }

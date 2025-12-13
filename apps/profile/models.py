@@ -1,3 +1,4 @@
+import re
 from datetime import timedelta
 
 from django.contrib.auth import get_user_model
@@ -6,16 +7,17 @@ from django.utils import timezone
 from django.utils.text import slugify
 from rest_framework.exceptions import ValidationError
 
-from apps.utils import CustomResponse
+from apps.users.choices import CustomUserRoleChoices
 from apps.utils.base_models import CreateUpdateBaseModel
+from apps.utils.generate_code import generate_public_id
 
 User = get_user_model()
 
 
-class Profile(CreateUpdateBaseModel):
+class PatientProfile(CreateUpdateBaseModel):
+    public_id = models.PositiveIntegerField(unique=True, db_index=True)
     user = models.OneToOneField(User, on_delete=models.CASCADE, related_name='profile')
-    username = models.CharField(max_length=250, null=True, unique=True, db_index=True)
-    full_name = models.CharField(max_length=250, null=True, blank=True)
+    full_name = models.CharField(max_length=250, null=True)
     bio = models.CharField(max_length=255, null=True, blank=True)
     image = models.ImageField(upload_to="users/profile/image/", null=True, blank=True)
     website = models.URLField(null=True, blank=True, max_length=250)
@@ -26,27 +28,25 @@ class Profile(CreateUpdateBaseModel):
     slug = models.SlugField(max_length=255, unique=True, blank=True, null=True)
 
     class Meta:
-        db_table = 'profile'
-        verbose_name = 'Profile'
-        verbose_name_plural = 'Profiles'
+        db_table = 'patient_profile'
+        verbose_name = 'Patient Profile'
+        verbose_name_plural = 'Patients Profile'
         ordering = ['-created_at']
 
     def __str__(self):
-        return self.username or self.user.full_name
-
-    def clean(self):
-        super().clean()
-        if self.username.rstrip():
-            if " " in self.username:
-                raise ValidationError(detail="Bo'sh joy bo'lishi mumkin emas.")
-
+        return self.full_name or  self.user.full_name or self.public_id
 
 
     def save(self, *args, **kwargs):
-        self.slug = slugify(self.username)
+        if not self.full_name:
+            self.full_name = getattr(self.user, "full_name", None)
 
-        if not self.full_name and self.user.full_name:
-            self.full_name = self.user.full_name
+        if not self.public_id:
+            self.public_id = generate_public_id(PatientProfile)
+
+        if not self.slug and self.full_name:
+            self.slug = slugify(self.full_name.strip())
+
         super().save(*args, **kwargs)
 
 
@@ -56,12 +56,17 @@ class StoryChoices(models.TextChoices):
 
 
 class Story(CreateUpdateBaseModel):
-    profile = models.ForeignKey(Profile, on_delete=models.CASCADE, related_name='story')
+    public_id = models.PositiveIntegerField(unique=True, db_index=True, null=True)
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='story')
+    role = models.CharField(
+                            max_length=50,
+                            choices=CustomUserRoleChoices.choices
+                            )
     content = models.FileField(upload_to='users/profile/story/', null=True)
     content_type = models.CharField(max_length=100, null=True, choices=StoryChoices.choices)
     view_count = models.PositiveIntegerField(default=0)
     expires_at = models.DateTimeField(null=True, blank=True)
-    expired = models.BooleanField(default=False)    # for delete
+    expired = models.BooleanField(default=False)  # for delete
 
     def __str__(self):
         return self.profile.full_name or ''
@@ -92,7 +97,6 @@ class Story(CreateUpdateBaseModel):
             self.expires_at = timezone.now() + timedelta(hours=24)
         super().save(*args, **kwargs)
 
-
     def is_expired(self):
         return timezone.now() > self.expires_at
 
@@ -101,8 +105,6 @@ class Story(CreateUpdateBaseModel):
         if created:
             self.view_count = StoryView.objects.filter(story=self).count()
             self.save(update_fields=['view_count'])
-
-
 
     class Meta:
         db_table = 'story'
@@ -127,10 +129,10 @@ class StoryView(CreateUpdateBaseModel):
         verbose_name = 'Story View'
         verbose_name_plural = 'Story Viewers'
 
+
 class FollowChoices(models.TextChoices):
     follow = ('follow', 'Follow')
     unfollow = ('unfollow', 'Unfollow')
-
 
 
 class Follow(CreateUpdateBaseModel):

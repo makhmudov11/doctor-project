@@ -1,6 +1,8 @@
 
 from django.contrib.auth import get_user_model
-from apps.utils.base_models import CreateUpdateBaseModel, Gender
+
+from apps.utils.base_models import CreateUpdateBaseModel
+
 
 User = get_user_model()
 

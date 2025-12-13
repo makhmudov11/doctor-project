@@ -27,3 +27,7 @@ class UserStoryListFilter(django_filters.FilterSet):
         model = Story
         fields = ['created_at__gte', 'created_at__lte', 'updated_at__gte', 'updated_at__lte',
                   'expires_at__gte', 'expires_at__lte']
+
+
+def get_user_active_role(user=None):
+    return user.active_role

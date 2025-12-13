@@ -1,0 +1,26 @@
+<html>
+  <body>
+    <script src="https://accounts.google.com/gsi/client" async defer></script>
+
+    <div id="buttonDiv"></div>
+
+    <script>
+      function handleCredentialResponse(response) {
+        console.log("TOKEN:", response.credential);
+        alert(response.credential); // tokenni chiqaradi
+      }
+
+      window.onload = function () {
+        google.accounts.id.initialize({
+          client_id: "867778079160-e9bvfis8c4h5gvcogqtthd0r59i1rbbp.apps.googleusercontent.com",
+          callback: handleCredentialResponse
+        });
+
+        google.accounts.id.renderButton(
+          document.getElementById("buttonDiv"),
+          { theme: "outline", size: "large" }
+        );
+      };
+    </script>
+  </body>
+</html>

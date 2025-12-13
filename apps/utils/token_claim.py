@@ -9,7 +9,7 @@ def get_tokens_for_user(user):
 
     update_last_login(sender=None, user=user)
     refresh = RefreshToken.for_user(user)
-    refresh['contact'] = user.contact
+    refresh['active_role'] = user.active_role
 
     return {
         'refresh': str(refresh),

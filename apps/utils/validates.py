@@ -1,5 +1,7 @@
 import re
 
+from apps.users.choices import CustomUserRoleChoices
+
 
 def validate_email_or_phone_number(contact=''):
     EMAIL_REGEX = r'^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$'
@@ -14,3 +16,5 @@ def validate_email_or_phone_number(contact=''):
     return 'phone'
 
 
+def get_valid_roles():
+    return {c[0] for c in CustomUserRoleChoices.choices}

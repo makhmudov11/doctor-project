@@ -5,47 +5,33 @@ from django.contrib.auth.models import PermissionsMixin
 from django.db import models
 from django.db.models import Q
 from django.utils import timezone
-from django.utils.translation import gettext_lazy as _
+
+from apps.users.choices import UserContactTypeChoices, UserSocialAuthRegistrationTypeChoices, CustomUserRoleChoices, \
+    default_roles
 from apps.users.managers import CustomUserManager
-from apps.utils.base_models import CreateUpdateBaseModel, Gender
-
-
-class CustomUserRoleChoices(models.TextChoices):
-    SHIFOKOR = "Shifokor", _("Shifokor")
-    ADMIN = "Admin", _("Admin")
-    SUPERADMIN = "SuperAdmin", _("SuperAdmin")
-    FOYDALANUVCHI = "FOYDALANUVCHI", _("FOYDALANUVCHI")
-    KLINIKA = "Klinika", _("Klinika")
-    COMPANY = "PharmCompany", _("PharmCompany")
-    MEDBRAT = "MedBrat", _("MedBrat")
-    MENEJER = "Menejer", _("Menejer")
-
-
-class UserSocialAuthRegistrationTypeChoices(models.TextChoices):
-    GOOGLE = ("google", "Google")
-    FACEBOOK = ("facebook", "Facebook")
-    APPLE = ("apple", "Apple")
-
-
-class UserContactTypeChoices(models.TextChoices):
-    PHONE = ('phone', 'Phone Number')
-    EMAIL = ('email', 'Email')
+from apps.utils.base_models import  CreateUpdateBaseModel, GenderChoices
+from apps.utils.generate_code import generate_public_id
 
 
 class CustomUser(AbstractBaseUser, PermissionsMixin, CreateUpdateBaseModel):
+    public_id = models.PositiveIntegerField(null=True, db_index=True)
     full_name = models.CharField(max_length=200, null=True)
     contact = models.CharField(max_length=200, unique=True, db_index=True)
     contact_type = models.CharField(max_length=100, null=True, choices=UserContactTypeChoices.choices)
     registration_type = models.CharField(null=True, blank=True,
                                          choices=UserSocialAuthRegistrationTypeChoices.choices
                                          )
-    active_role = models.CharField(max_length=30,
-                                   choices=CustomUserRoleChoices.choices,
-                                   default=CustomUserRoleChoices.FOYDALANUVCHI,
-                                   )
+    active_role = models.CharField(
+        max_length=100,
+        choices=CustomUserRoleChoices.choices,
+        default=CustomUserRoleChoices.FOYDALANUVCHI,
+        null=True,
+        blank=True
+    )
+    roles = models.JSONField(default=default_roles, null=True, blank=True)
     image = models.ImageField(upload_to='users/image/', null=True, blank=True)
     birth_date = models.DateField(null=True)
-    gender = models.CharField(null=True, choices=Gender.choices)
+    gender = models.CharField(null=True, choices=GenderChoices.choices)
     status = models.BooleanField(default=False)
 
     is_active = models.BooleanField(default=True)
@@ -70,10 +56,16 @@ class CustomUser(AbstractBaseUser, PermissionsMixin, CreateUpdateBaseModel):
         return f"{self.full_name.title()}" or self.contact
 
 
+    def save(self, *args, **kwargs):
+        if not self.public_id:
+            self.public_id = generate_public_id(CustomUser)
+        super().save(*args, **kwargs)
+
+
 class SmsCodeTypeChoices(models.TextChoices):
-    LOGIN = 'login', 'Login'
-    REGISTER = 'register', 'Register'
-    CHANGE_PASSWORD = 'change-password', 'Change Password'
+    LOGIN = 'login', 'login'
+    REGISTER = 'register', 'register'
+    CHANGE_PASSWORD = 'change-password', 'change password'
 
 
 class SmsCode(CreateUpdateBaseModel):

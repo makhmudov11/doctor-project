@@ -2,8 +2,10 @@ from django.contrib.auth import get_user_model
 from django.utils import timezone
 from drf_spectacular.utils import extend_schema_field
 from rest_framework import serializers
+from rest_framework.status import HTTP_400_BAD_REQUEST
 
-from apps.users.models import SmsCode, UserContactTypeChoices
+from apps.users.choices import UserContactTypeChoices, CustomUserRoleChoices
+from apps.users.models import SmsCode
 from apps.utils.CustomValidationError import CustomValidationError
 from apps.utils.validates import validate_email_or_phone_number
 
@@ -66,6 +68,16 @@ class LoginSerializer(serializers.Serializer):
         return attrs
 
 
+class LogoutSerializer(serializers.Serializer):
+    refresh_token = serializers.CharField(max_length=255)
+
+    def validate(self, attrs):
+        token = attrs.get('refresh_token', '').strip()
+        if not token:
+            raise CustomValidationError(detail='Token kelishi shart', code=HTTP_400_BAD_REQUEST)
+        return attrs
+
+
 class UserSerializer(serializers.ModelSerializer):
     last_login = serializers.SerializerMethodField()
 
@@ -84,7 +96,6 @@ class UserSerializer(serializers.ModelSerializer):
 
 
 class SmsCodeSerializer(serializers.ModelSerializer):
-
     class Meta:
         model = SmsCode
         fields = ['id', 'contact', 'attempts', 'resend_code', 'verified',
@@ -144,3 +155,12 @@ class UserForgotPasswordSerializer(serializers.Serializer):
 class UserResetPasswordSerializer(serializers.Serializer):
     contact = serializers.CharField(max_length=100)
     password = serializers.CharField(max_length=100)
+
+
+class UserSelectRoleSerializer(serializers.Serializer):
+    role = serializers.JSONField(default=list)
+
+
+class UserChangeRoleSerializer(serializers.Serializer):
+    role = serializers.ChoiceField(choices=CustomUserRoleChoices.choices)
+
